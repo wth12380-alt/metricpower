@@ -5,7 +5,9 @@ metrics, the score) test at the sample size the package calculates, for every im
 For each metric the simulation draws data at the planning operating point (truth theta_1, analytic
 per-unit variance V_1) under the metric's own data-generating process (validation/catalogue.py) and
   * type I error : rejection rate of H0: theta = theta_1 at nominal alpha = .05 (data drawn at theta_1),
-                   i.e. 1 - coverage of the 95% Wald interval, at n_Wald;
+                   i.e. 1 - coverage of the 95% interval, at the calculated n;
+                   per-case means use the one-sample t-test (n from the noncentral t, critical value t_{n-1});
+                   all other metrics use the z-based Wald test;
   * power        : rejection rate of H0: theta = theta_0 = theta_1 - delta at n_Wald, target 0.80;
   * score power  : for confusion-matrix metrics, the same with the null SE sqrt(V_0/n) at n_score;
   * dV%          : 100 * (V_MC / V_1 - 1), the deviation of the simulated from the analytic variance.
@@ -24,7 +26,7 @@ import time
 import warnings
 
 import numpy as np
-from scipy.stats import norm, skew
+from scipy.stats import norm, skew, t as tdist
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import metricpower as mp
@@ -61,17 +63,21 @@ for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other
         delta = args.delta_abs if args.delta_abs is not None else args.delta_frac * abs(th1)
         if delta <= 0:
             rows.append(dict(metric=nm, family=fam, theta=th1, V=V1, note="theta = 0: relative delta undefined")); continue
-        n_w = mp.n_for_power(V1, delta, alpha=args.alpha, power=args.power)
+        # per-case means are analysed with a one-sample t-test (sample SD as SE): size with the noncentral t
+        # and test with t_{n-1}; everything else is a z-based Wald test
+        t_based = fam == "per-case"
+        n_w = (mp.n_for_power_t if t_based else mp.n_for_power)(V1, delta, alpha=args.alpha, power=args.power)
         if n_w > args.max_n:
             rows.append(dict(metric=nm, family=fam, theta=th1, V=V1, n_wald=n_w, note="n above --max-n, skipped")); continue
         th0 = th1 - delta
+        crit = float(tdist.ppf(1 - args.alpha / 2, n_w - 1)) if t_based else z_a
         est, se = s["est_se"](n_w, REPS)
         ok = np.isfinite(est) & np.isfinite(se) & (se > 0)
         est, se = est[ok], se[ok]
         dV = 100 * (n_w * est.var(ddof=1) / V1 - 1)
-        t1e = float(np.mean(np.abs(est - th1) > z_a * se))          # H0 at the truth, data at the truth
-        pw = float(np.mean(np.abs(est - th0) > z_a * se))           # H0 at theta_0, data at theta_1, n = n_Wald
-        row = dict(metric=nm, family=fam, theta=th1, V=V1, dV_pct=dV, n_wald=n_w, type1_wald=t1e, power_wald=pw,
+        t1e = float(np.mean(np.abs(est - th1) > crit * se))         # H0 at the truth, data at the truth
+        pw = float(np.mean(np.abs(est - th0) > crit * se))          # H0 at theta_0, data at theta_1, n = n_Wald
+        row = dict(metric=nm, family=fam, theta=th1, V=V1, dV_pct=dV, n_wald=n_w, type1_wald=t1e, power_wald=pw, test="t" if t_based else "z",
                    undefined_pct=100 * (1 - ok.mean()), skew=s.get("skew", float("nan")))
         # score test for confusion-matrix metrics: null variance from the null operating point (sensitivity / specificity path)
         if fam == "confusion" and "p" in s:
@@ -88,7 +94,7 @@ for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other
               + (f"  | n_S={row['n_score']:>6} power_S={row['power_score']:.3f}" if "power_score" in row else ""), flush=True)
 
 # ------------------------------------------------------------------ write
-cols = ["metric", "family", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald", "V_null", "n_score", "power_score", "undefined_pct", "skew", "note"]
+cols = ["metric", "family", "test", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald", "V_null", "n_score", "power_score", "undefined_pct", "skew", "note"]
 with open(os.path.join(here, "operating_characteristics.csv"), "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=cols); w.writeheader()
     for r in rows: w.writerow({k: r.get(k, "") for k in cols})
@@ -104,12 +110,12 @@ lines.append(f"OPERATING CHARACTERISTICS   {len(done)} metrics   REPS = {REPS:,}
              + f"   alpha = {args.alpha}   target power = {args.power}")
 lines.append(f"Monte Carlo error (2 SE): variance ratio +/- {200 * SE_V:.1f}%   type I error +/- {2 * SE_RATE:.3f}   power +/- {2 * SE_POW:.3f}")
 lines.append("=" * 118)
-lines.append(f"{'metric':<26}{'family':<12}{'theta':>8}{'V':>9}{'dV%':>8}{'n_W':>7}{'typeI':>7}{'power':>7}{'n_S':>7}{'pow_S':>7}{'skew':>7}  note")
+lines.append(f"{'metric':<26}{'family':<12}{'test':>5}{'theta':>8}{'V':>9}{'dV%':>8}{'n_W':>7}{'typeI':>7}{'power':>7}{'n_S':>7}{'pow_S':>7}{'skew':>7}  note")
 lines.append("-" * 118)
 for r in rows:
     def f(k, fmt, width):
         return (fmt % r[k]).rjust(width) if k in r and r[k] == r[k] else "-".rjust(width)
-    lines.append(f"{r['metric']:<26}{r['family']:<12}{f('theta', '%.3f', 8)}{f('V', '%.4f', 9)}{f('dV_pct', '%+.1f%%', 8)}"
+    lines.append(f"{r['metric']:<26}{r['family']:<12}{r.get('test', '-'):>5}{f('theta', '%.3f', 8)}{f('V', '%.4f', 9)}{f('dV_pct', '%+.1f%%', 8)}"
                  f"{f('n_wald', '%d', 7)}{f('type1_wald', '%.3f', 7)}{f('power_wald', '%.3f', 7)}{f('n_score', '%d', 7)}{f('power_score', '%.3f', 7)}{f('skew', '%.2f', 7)}  {r.get('note', '')}")
 lines.append("=" * 118)
 lines.append("SUMMARY")

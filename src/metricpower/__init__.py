@@ -14,7 +14,7 @@ Quick start
 810
 >>> mp.n_for_power_group_a("auroc", auc1=0.80, auc0=0.70).n
 """
-from .core import (Result, cell_prob, cell_prob_from_operating_point, delta_var, numeric_gradient,
+from .core import (n_for_power_t, power_for_n_t, kink_distance, Result, cell_prob, cell_prob_from_operating_point, delta_var, numeric_gradient,
                    METRIC_REGISTRY, CM_METRICS, get_metric, get_gradient, metric_variance,
                    paired_marginal, delta_var_paired, design_effect, n_for_power, power_for_n,
                    n_for_precision, metric_ci, cell_prob_at_metric, n_for_power_metric,
@@ -37,4 +37,4 @@ from .references import REFERENCES
 from .groupc import GROUP_C, explain_group_c
 # experimental, not wired into the dispatcher or the app: from metricpower import bleu
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"

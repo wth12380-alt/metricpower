@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "metricpower"
-version = "0.1.0"
+version = "0.1.1"
 description = "A priori sample size and power for the performance metrics used to evaluate medical-imaging AI"
 readme = "README.md"
 requires-python = ">=3.9"

@@ -9,7 +9,7 @@ medical-imaging AI.
 # from GitHub (this folder is a sub-directory of the metricpower repository)
 remotes::install_github("wth12380-alt/metricpower", subdir = "r-package")
 # or from the bundled tarball
-install.packages("metricpower_0.1.1.tar.gz", repos = NULL, type = "source")
+install.packages("metricpower_0.1.2.tar.gz", repos = NULL, type = "source")
 library(metricpower)
 ```
 

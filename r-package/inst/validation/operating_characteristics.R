@@ -10,7 +10,10 @@
 #  (truth theta_1, analytic per-unit variance V_1) and
 #    dV%        100 * (V_MC / V_1 - 1), simulated vs analytic variance at n_W
 #    type I     rejection rate of H0: theta = theta_1 at nominal alpha
-#               (data drawn at theta_1; = 1 - coverage of the Wald CI)
+#               (data drawn at theta_1; = 1 - coverage of the CI). Per-case means
+#               use the one-sample t-test (n from power.t.test, critical value
+#               qt(1 - alpha/2, n - 1)); everything else the z-based Wald test
+#               (needs metricpower >= 0.1.2 for n_for_power_t)
 #    power      rejection rate of H0: theta = theta_0 = theta_1 - delta at
 #               n_W = n_for_power(V_1, delta); target 0.80
 #    power_S    confusion-matrix metrics only: score statistic standardised by
@@ -217,16 +220,22 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
     delta <- if (!is.na(DELTA_ABS)) DELTA_ABS else DELTA_FRAC * abs(th1)
     row <- list(metric = nm, family = fam, theta = th1, V = V1, skew = s$skew)
     if (delta <= 0) { row$note <- "theta = 0: relative delta undefined"; rows[[nm]] <- row; next }
-    n_w <- n_for_power(V1, delta, alpha = ALPHA, power = POWER)
+    # per-case means are analysed with a one-sample t-test (sample SD as SE): size with the
+    # noncentral t (power.t.test) and test with qt(., n - 1); everything else is a z-based Wald test
+    t_based <- fam == "per-case"
+    n_w <- if (t_based) n_for_power_t(V1, delta, alpha = ALPHA, power = POWER)
+           else n_for_power(V1, delta, alpha = ALPHA, power = POWER)
     if (n_w > MAX_N) { row$n_wald <- n_w; row$note <- "n above MAX_N, skipped"; rows[[nm]] <- row; next }
     th0 <- th1 - delta
+    crit <- if (t_based) stats::qt(1 - ALPHA / 2, n_w - 1) else Z_A
     es <- s$est_se(n_w, REPS)
     ok <- is.finite(es[, 1]) & is.finite(es[, 2]) & es[, 2] > 0
     est <- es[ok, 1]; se <- es[ok, 2]
     row$dV_pct      <- 100 * (n_w * stats::var(est) / V1 - 1)
     row$n_wald      <- n_w
-    row$type1_wald  <- mean(abs(est - th1) > Z_A * se)     # H0 at the truth
-    row$power_wald  <- mean(abs(est - th0) > Z_A * se)     # H0 at theta_0, n = n_W
+    row$test        <- if (t_based) "t" else "z"
+    row$type1_wald  <- mean(abs(est - th1) > crit * se)    # H0 at the truth
+    row$power_wald  <- mean(abs(est - th0) > crit * se)    # H0 at theta_0, n = n_W
     row$undefined_pct <- 100 * mean(!ok)
     # score test for confusion-matrix metrics: null variance from the null operating point
     if (fam == "confusion") {
@@ -251,7 +260,7 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
 # Table, summary, Results sentence
 # -----------------------------------------------------------------------------
 
-cols <- c("metric", "family", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald",
+cols <- c("metric", "family", "test", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald",
           "V_null", "n_score", "power_score", "undefined_pct", "skew", "note")
 tab <- do.call(rbind, lapply(rows, function(r) {
   as.data.frame(lapply(setNames(cols, cols), function(k) if (is.null(r[[k]])) NA else r[[k]]),
@@ -270,7 +279,7 @@ cat(sprintf("OPERATING CHARACTERISTICS   %d metrics   REPS = %s   delta = %s   a
 cat(sprintf("Monte Carlo error (2 SE): variance ratio +/- %.1f%%   type I error +/- %.3f   power +/- %.3f\n",
             200 * SE_V, 2 * SE_RATE, 2 * SE_POW))
 cat(strrep("=", 118), "\n", sep = "")
-print(tab[, c("metric", "family", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald", "n_score", "power_score", "skew")],
+print(tab[, c("metric", "family", "test", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald", "n_score", "power_score", "skew")],
       digits = 3, row.names = FALSE)
 cat(strrep("=", 118), "\nSUMMARY\n", sep = "")
 cat(sprintf("  simulated vs analytic variance: %+.1f%% to %+.1f%%; %d of %d within the MC noise band\n",

@@ -1,7 +1,7 @@
 Package: metricpower
 Type: Package
 Title: Sample Size and Power for AI Performance Metrics
-Version: 0.1.1
+Version: 0.1.2
 Authors@R: person("Theo", "Wu", email = "tw73@rice.edu", role = c("aut", "cre"))
 Description: Sampling variances and sample-size calculations for the
     performance metrics used to evaluate medical-imaging AI. Metrics whose

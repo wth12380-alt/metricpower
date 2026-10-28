@@ -20,7 +20,7 @@ import numpy as np
 from scipy.stats import norm
 
 from . import families as F
-from .core import (CM_METRICS, Result, _z, kappa_w, kappa_w_var_fce, n_for_power,
+from .core import (n_for_power_t, CM_METRICS, Result, _z, kappa_w, kappa_w_var_fce, n_for_power,
                    n_for_power_metric, weights_identity, weights_linear, weights_quadratic)
 
 GROUP_B_FAMILY: Dict[str, List[str]] = {
@@ -60,21 +60,37 @@ def group_b_manifest() -> List[dict]:
 
 
 def _finish(metric, fam, est, V, delta, alpha, power, two_sided, deff, formula_latex, formula_numeric,
-            refs, notes=None, inputs=None, steps=None, null_value=None):
+            refs, notes=None, inputs=None, steps=None, null_value=None, t_test=False):
     za, zb = _z(alpha, two_sided), float(norm.ppf(power))
-    n = n_for_power(V, delta, alpha=alpha, power=power, two_sided=two_sided, deff=deff)
+    n_z = n_for_power(V, delta, alpha=alpha, power=power, two_sided=two_sided, deff=deff)
     raw = (za + zb) ** 2 * V / delta ** 2
     steps = list(steps or []) + [("V (per-unit variance)", round(V, 6)),
                                  ("z_{1-alpha/2}" if two_sided else "z_{1-alpha}", round(za, 6)),
-                                 ("z_{1-beta}", round(zb, 6)), ("n", n)]
-    fl = list(formula_latex) + [r"n = \frac{(z_{1-\alpha/2}+z_{1-\beta})^2\,V}{\Delta^2}"]
-    fn = list(formula_numeric) + [f"n = \\frac{{({za:.6f}+{zb:.6f})^2 \\times {V:.5f}}}{{{delta:.4f}^2}} = {raw:.2f} \\to {n if deff == 1 else int(math.ceil(raw - 1e-12))}"]
+                                 ("z_{1-beta}", round(zb, 6))]
+    fl = list(formula_latex) + [r"n_z = \frac{(z_{1-\alpha/2}+z_{1-\beta})^2\,V}{\Delta^2}"]
+    fn = list(formula_numeric) + [f"n_z = \\frac{{({za:.6f}+{zb:.6f})^2 \\times {V:.5f}}}{{{delta:.4f}^2}} = {raw:.2f} \\to {n_z if deff == 1 else int(math.ceil(raw - 1e-12))}"]
+    extra = {"n_z": n_z}
+    if t_test:
+        # per-case mean: the analysis is a one-sample t-test with the sample SD, so size it with the
+        # noncentral t (as power.t.test); matters below n ~ 50, where the z formula under-sizes
+        n = n_for_power_t(V, delta, alpha=alpha, power=power, two_sided=two_sided, deff=deff)
+        from scipy.stats import t as tdist
+        ta, tb = float(tdist.ppf(1 - alpha / (2 if two_sided else 1), n - 1)), float(tdist.ppf(power, n - 1))
+        steps += [("t_{n-1,1-alpha/2}", round(ta, 4)), ("t_{n-1,1-beta}", round(tb, 4)), ("n (z formula)", n_z), ("n (t-test, noncentral t)", n)]
+        fl.append(r"n = \min\{n : P(|T_{n-1,\,\lambda}| > t_{n-1,1-\alpha/2}) \ge 1-\beta\},\quad \lambda = \Delta\sqrt{n/V}")
+        fn.append(f"t_{{{n-1},0.975}} = {ta:.4f},\\quad n_z = {n_z} \\to n_t = {n}")
+        if n > n_z:
+            notes = list(notes or []) + [f"n uses the t-test (noncentral t) rather than the z formula ({n_z}): with the sample SD "
+                                         "as SE the z critical value inflates the type I error at small n"]
+    else:
+        n = n_z
+        steps.append(("n", n))
     if deff != 1:
         fl.append(r"n_{\text{clustered}} = n \times \text{deff}")
         fn.append(f"{math.ceil(raw - 1e-12)} \\times {deff:.3f} \\to {n}")
     return Result(n=n, metric=metric, group="B", estimate=est, null_value=null_value, V_alt=V, V_null=V,
                   inputs=inputs or {}, steps=steps, formula_latex=fl, formula_numeric=fn,
-                  reference=refs, notes=notes or [])
+                  reference=refs, notes=notes or [], extra=extra)
 
 
 def n_for_power_group_b(metric: str, *, delta: Optional[float] = None, alpha: float = 0.05,
@@ -153,7 +169,7 @@ def n_for_power_group_b(metric: str, *, delta: Optional[float] = None, alpha: fl
         return _finish(metric, fam, r["estimate"], r["V"], delta, alpha, power, two_sided, deff, fl, fn,
                        ["clt_mean", "bradley2008"] if metric in ("brier", "root_brier") else ["clt_mean"],
                        notes=notes, inputs=dict(mean=r["mean"], sd=math.sqrt(r["V_mean"]), delta=delta, transform=e["transform"]),
-                       null_value=r["estimate"] - delta)
+                       null_value=r["estimate"] - delta, t_test=True)
 
     # ---- other ----
     if metric == "weighted_kappa":
