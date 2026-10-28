@@ -1,5 +1,5 @@
 ======================================================================================================================
-OPERATING CHARACTERISTICS   85 metrics   REPS = 10,000   delta = 10% of the metric value   alpha = 0.05   target power = 0.8
+OPERATING CHARACTERISTICS   85 metrics   REPS = 10,000   script 2026-10-28c   delta = 10% of the metric value   alpha = 0.05   target power = 0.8
 Monte Carlo error (2 SE): variance ratio +/- 2.8%   type I error +/- 0.004   power +/- 0.008
 ======================================================================================================================
 metric                    family         test   theta        V     dV%    n_W  typeI  power    n_S  pow_S   skew  note
@@ -23,7 +23,7 @@ false_discovery_rate      confusion         z   0.222   0.3841   -0.4%   6105  0
 false_omission_rate       confusion         z   0.273   0.3606   +0.1%   3806  0.050  0.810      -      -      -  score: ValueError
 class_error               confusion         z   0.300   0.4200   +1.0%   3663  0.051  0.807      -      -      -  score: ValueError
 false_referral_rate       confusion         z   0.222   0.3841   +0.8%   6105  0.051  0.802      -      -      -  score: ValueError
-volumetric_similarity     confusion    folded   0.947   0.2762  -19.3%    240  0.043  0.794      -      -      -  
+volumetric_similarity     confusion    folded   0.947   0.2762  -19.3%    240  0.043  0.794      -      -      -    [dV is vs the delta-method V; vs the folded-normal V: -3.8%]
 ior                       confusion         z   0.700   0.4200   -1.6%    673  0.049  0.798    725  0.801      -  
 micro_precision           multiclass        z   0.750   0.1875   -2.6%    262  0.044  0.805      -      -      -  
 micro_recall              multiclass        z   0.750   0.1875   +0.4%    262  0.048  0.806      -      -      -  
@@ -91,11 +91,12 @@ risk_difference           other             z   0.150   0.9750   +2.1%  34012  0
 paired_proportion         other             z   0.070   0.1651   -0.4%  26446  0.049  0.809      -      -      -  
 ======================================================================================================================
 SUMMARY
-  simulated vs analytic variance: -19.3% to +3.7%; 79 of 85 within the MC noise band
+  simulated vs analytic (delta-method) variance, 84 metrics: -3.0% to +3.7%; 79 of 84 within the MC noise band
+  volumetric_similarity: -19.3% vs the delta-method V (expected: the distribution is folded at the kink), -3.8% vs the folded-normal V; sized and tested with the folded-normal test
   type I error (nominal 0.05): 0.043 to 0.062; 2 outside 0.05 +/- 0.01: bertscore (0.062), ssim (0.060)
   power at n_Wald (target 0.8): 0.732 to 0.870; 13 outside +/- 0.02: specificity (0.776), dsc_f1 (0.778), macro_f1 (0.777), nll (0.821), perplexity (0.870), rouge_3 (0.821), ssim (0.766), ensemble_mse (0.821), dice_percase (0.756), iou_percase (0.779), hd95_percase (0.820), entropy (0.732), conditional_entropy (0.753)
   score test (confusion-matrix metrics, n = 14): power 0.762 to 0.807
 
 Results sentence (fill into the manuscript):
   For all 85 implemented variances the Monte Carlo variance was within 19% of the analytic value (range -19.3% to +3.7%). At nominal alpha = .05 the empirical type I error of the Wald test ranged from 0.043 to 0.062, and empirical power at the calculated sample size ranged from 0.73 to 0.87 against a target of 0.80; the 13 metrics outside +/- 0.02 of the target were specificity, dsc_f1, macro_f1, nll, perplexity, rouge_3, ssim, ensemble_mse, dice_percase, iou_percase, hd95_percase, entropy, conditional_entropy.
-(72 s)
+(70 s)

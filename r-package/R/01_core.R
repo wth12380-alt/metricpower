@@ -467,6 +467,24 @@ n_for_power_vs_folded <- function(p1, delta, alpha = 0.05, power = 0.80, two_sid
   ceiling(hi * deff)
 }
 
+#' Folded-normal variance of volumetric similarity at sample size n (per unit) and the
+#' small-n bias of the point estimate; the delta-method V is its |mu|/s -> Inf limit
+vs_variance_folded <- function(p, n) {
+  a <- c(0, 1, -1, 0); b <- c(2, 1, 1, 0)
+  Sig <- diag(p) - tcrossprod(p)
+  mu <- sum(a * p); D <- sum(b * p)
+  var_y <- drop(t(a) %*% Sig %*% a) / n; var_d <- drop(t(b) %*% Sig %*% b) / n
+  cov_yd <- drop(t(a) %*% Sig %*% b) / n
+  s <- sqrt(max(var_y, 1e-300)); r <- mu / s
+  EA <- 2 * s * stats::dnorm(r) + mu * (2 * stats::pnorm(r) - 1)          # E|Y|
+  VarA <- mu^2 + s^2 - EA^2                                               # Var|Y|
+  EY2sgn <- (mu^2 + s^2) * (2 * stats::pnorm(r) - 1) + 2 * mu * s * stats::dnorm(r)
+  cov_ad <- cov_yd / var_y * (EY2sgn - EA * mu)                           # Cov(|Y|, D)
+  var_vs <- VarA / D^2 + EA^2 * var_d / D^4 - 2 * EA * cov_ad / D^3
+  list(V = var_vs * n, bias = -(EA - abs(mu)) / D, kink_se = abs(mu) / s,
+       estimate = 1 - abs(mu) / D)
+}
+
 #' Volumetric similarity: distance of |fp - fn| from the kink at fp = fn, in SEs
 #'
 #' The metric is not differentiable at fp = fn. Below about 3 SE a share of samples

@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import metricpower as mp
 import catalogue
 
+SCRIPT_VERSION = "2026-10-28c"
 ap = argparse.ArgumentParser()
 ap.add_argument("--reps", type=int, default=10000)
 ap.add_argument("--delta-frac", type=float, default=0.10, help="delta as a fraction of |theta_1| (default 0.10)")
@@ -80,7 +81,10 @@ for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other
         est, se = s["est_se"](n_w, REPS)
         ok = np.isfinite(est) & np.isfinite(se) & (se > 0)
         est, se = est[ok], se[ok]
-        dV = 100 * (n_w * est.var(ddof=1) / V1 - 1)
+        dV = 100 * (n_w * est.var(ddof=1) / V1 - 1)          # simulated vs analytic (delta-method) V
+        dV_folded = None
+        if folded:                                           # VS: also vs the folded-normal V, which is the relevant one
+            dV_folded = 100 * (n_w * est.var(ddof=1) / mp.vs_variance_folded(s["p"], n_w)["V"] - 1)
         if folded:
             # equal-tailed folded-normal test with plug-in s and D from each sample
             a_, b_ = np.array([0, 1, -1, 0.]), np.array([2, 1, 1, 0.])
@@ -97,7 +101,7 @@ for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other
         else:
             t1e = float(np.mean(np.abs(est - th1) > crit * se))     # H0 at the truth, data at the truth
             pw = float(np.mean(np.abs(est - th0) > crit * se))      # H0 at theta_0, data at theta_1, n = n_Wald
-        row = dict(metric=nm, family=fam, theta=th1, V=V1, dV_pct=dV, n_wald=n_w, type1_wald=t1e, power_wald=pw, test="folded" if folded else ("t" if t_based else "z"),
+        row = dict(metric=nm, family=fam, theta=th1, V=V1, dV_pct=dV, n_wald=n_w, type1_wald=t1e, power_wald=pw, test="folded" if folded else ("t" if t_based else "z"), dV_folded_pct=dV_folded,
                    undefined_pct=100 * (1 - ok.mean()), skew=s.get("skew", float("nan")))
         # score test for confusion-matrix metrics: null variance from the null operating point (sensitivity / specificity path)
         if fam == "confusion" and "p" in s and not folded:
@@ -110,7 +114,7 @@ for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other
             except Exception as ex:                                 # null value unreachable on both paths
                 row.update(note=f"score: {type(ex).__name__}")
         rows.append(row)
-        print(f"{nm:<26}{fam:<12} n_W={n_w:>6}  dV={dV:+6.1f}%  typeI={t1e:.3f}  power={pw:.3f}"
+        print(f"{nm:<26}{fam:<12} n_W={n_w:>6}  dV={dV:+6.1f}%" + (f" (vs delta V; vs folded V {dV_folded:+.1f}%)" if folded else "") + f"  typeI={t1e:.3f}  power={pw:.3f}"
               + (f"  | n_S={row['n_score']:>6} power_S={row['power_score']:.3f}" if "power_score" in row else ""), flush=True)
 
 # ------------------------------------------------------------------ merge (optional) and write
@@ -130,7 +134,7 @@ if args.merge_into:
             if "n_score" in rr: rr["n_score"] = int(rr["n_score"])
             merged.append(rr)
     rows = merged
-cols = ["metric", "family", "test", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald", "V_null", "n_score", "power_score", "undefined_pct", "skew", "note"]
+cols = ["metric", "family", "test", "theta", "V", "dV_pct", "dV_folded_pct", "n_wald", "type1_wald", "power_wald", "V_null", "n_score", "power_score", "undefined_pct", "skew", "note"]
 with open(os.path.join(here, "operating_characteristics.csv"), "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=cols); w.writeheader()
     for r in rows: w.writerow({k: r.get(k, "") for k in cols})
@@ -141,7 +145,7 @@ off_pow = [r for r in done if abs(r["power_wald"] - args.power) > 0.02]
 off_t1 = [r for r in done if abs(r["type1_wald"] - args.alpha) > 0.01]
 lines = []
 lines.append("=" * 118)
-lines.append(f"OPERATING CHARACTERISTICS   {len(done)} metrics   REPS = {REPS:,}   delta = "
+lines.append(f"OPERATING CHARACTERISTICS   {len(done)} metrics   REPS = {REPS:,}   script {SCRIPT_VERSION}   delta = "
              + (f"{args.delta_abs} (absolute)" if args.delta_abs is not None else f"{100 * args.delta_frac:.0f}% of the metric value")
              + f"   alpha = {args.alpha}   target power = {args.power}")
 lines.append(f"Monte Carlo error (2 SE): variance ratio +/- {200 * SE_V:.1f}%   type I error +/- {2 * SE_RATE:.3f}   power +/- {2 * SE_POW:.3f}")
@@ -152,10 +156,17 @@ for r in rows:
     def f(k, fmt, width):
         return (fmt % r[k]).rjust(width) if k in r and r[k] == r[k] else "-".rjust(width)
     lines.append(f"{r['metric']:<26}{r['family']:<12}{r.get('test', '-'):>7}{f('theta', '%.3f', 8)}{f('V', '%.4f', 9)}{f('dV_pct', '%+.1f%%', 8)}"
-                 f"{f('n_wald', '%d', 7)}{f('type1_wald', '%.3f', 7)}{f('power_wald', '%.3f', 7)}{f('n_score', '%d', 7)}{f('power_score', '%.3f', 7)}{f('skew', '%.2f', 7)}  {r.get('note', '')}")
+                 f"{f('n_wald', '%d', 7)}{f('type1_wald', '%.3f', 7)}{f('power_wald', '%.3f', 7)}{f('n_score', '%d', 7)}{f('power_score', '%.3f', 7)}{f('skew', '%.2f', 7)}  {r.get('note', '')}"
+                 + (f"  [dV is vs the delta-method V; vs the folded-normal V: {r['dV_folded_pct']:+.1f}%]" if r.get("dV_folded_pct") is not None else ""))
 lines.append("=" * 118)
 lines.append("SUMMARY")
-lines.append(f"  simulated vs analytic variance: {dv.min():+.1f}% to {dv.max():+.1f}%; {int((np.abs(dv) <= 200 * SE_V).sum())} of {len(done)} within the MC noise band")
+vs_rows = [r for r in done if r.get("dV_folded_pct") is not None]
+dv_nf = np.array([r["dV_pct"] for r in done if r.get("dV_folded_pct") is None])
+lines.append(f"  simulated vs analytic (delta-method) variance, {len(dv_nf)} metrics: {dv_nf.min():+.1f}% to {dv_nf.max():+.1f}%; "
+             f"{int((np.abs(dv_nf) <= 200 * SE_V).sum())} of {len(dv_nf)} within the MC noise band")
+for r in vs_rows:
+    lines.append(f"  {r['metric']}: {r['dV_pct']:+.1f}% vs the delta-method V (expected: the distribution is folded at the kink), "
+                 f"{r['dV_folded_pct']:+.1f}% vs the folded-normal V; sized and tested with the folded-normal test")
 lines.append(f"  type I error (nominal {args.alpha}): {t1.min():.3f} to {t1.max():.3f}; {len(off_t1)} outside {args.alpha} +/- 0.01: " + ", ".join(f"{r['metric']} ({r['type1_wald']:.3f})" for r in off_t1))
 lines.append(f"  power at n_Wald (target {args.power}): {pw.min():.3f} to {pw.max():.3f}; {len(off_pow)} outside +/- 0.02: " + ", ".join(f"{r['metric']} ({r['power_wald']:.3f})" for r in off_pow))
 sc = [r for r in done if "power_score" in r]
