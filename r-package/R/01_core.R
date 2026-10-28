@@ -405,6 +405,38 @@ n_for_power <- function(V_alt, delta, V_null = V_alt, alpha = 0.05,
   ceiling(n * deff)
 }
 
+#' Sample size for a one-sample t-test on a per-case mean (noncentral t, as power.t.test)
+#'
+#' The z formula treats sigma as known; with the sample SD as the SE the z critical
+#' value inflates the type I error at small n (0.12 at n = 5, 0.07 at n = 15).
+#' This returns the smallest n whose t-test power reaches the target; it equals the
+#' z-based n for large n. deff multiplies the result.
+n_for_power_t <- function(V_alt, delta, alpha = 0.05, power = 0.80,
+                          two_sided = TRUE, deff = 1) {
+  if (delta == 0) stop("delta must be non-zero")
+  r <- stats::power.t.test(delta = abs(delta), sd = sqrt(V_alt), sig.level = alpha,
+                           power = power, type = "one.sample",
+                           alternative = if (two_sided) "two.sided" else "one.sided")
+  ceiling(r$n * deff)
+}
+
+#' Power of the one-sample t-test at a given n (noncentral t)
+power_for_n_t <- function(n, V_alt, delta, alpha = 0.05, two_sided = TRUE, deff = 1) {
+  stats::power.t.test(n = n / deff, delta = abs(delta), sd = sqrt(V_alt), sig.level = alpha,
+                      type = "one.sample",
+                      alternative = if (two_sided) "two.sided" else "one.sided")$power
+}
+
+#' Volumetric similarity: distance of |fp - fn| from the kink at fp = fn, in SEs
+#'
+#' The metric is not differentiable at fp = fn. Below about 3 SE a share of samples
+#' crosses the kink, the absolute value folds the sampling distribution and the
+#' delta-method variance is too large (18% at 1.6 SE; the test is conservative).
+kink_distance <- function(p, n) {
+  fp <- p[2]; fn <- p[3]
+  abs(fp - fn) / sqrt(max((fp + fn - (fp - fn)^2) / n, 1e-300))
+}
+
 #' Power attained at a given n
 power_for_n <- function(n, V_alt, delta, V_null = V_alt, alpha = 0.05,
                         two_sided = TRUE, deff = 1) {
@@ -539,6 +571,15 @@ n_for_power_metric <- function(p, name, delta, alpha = 0.05, power = 0.80,
     n_for_power(V_alt = V1, delta = delta, V_null = V0,
                 alpha = alpha, power = power,
                 two_sided = two_sided, deff = deff)
+
+  if (name == "volumetric_similarity") {
+    kd <- kink_distance(p, if (test == "wald") n_wald else n_score)
+    if (is.finite(kd) && kd < 3)
+      warning(sprintf(paste0("volumetric similarity: |fp - fn| is only %.1f SE from the kink at ",
+                             "fp = fn at this n; the delta-method variance is too large there ",
+                             "(the test is conservative). Move the operating point, or bootstrap ",
+                             "after data collection."), kd), call. = FALSE)
+  }
 
   list(n = if (test == "wald") n_wald else n_score,
        test = test,

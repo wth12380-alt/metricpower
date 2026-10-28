@@ -64,9 +64,16 @@ def _build_cm(m):
         p = core.cell_prob_from_operating_point(vals["sens"], vals["spec"], vals["prev"])
         theta1 = cm_value(m, vals)
         delta = theta1 - vals["null"]
-        return core.n_for_power_metric(p, m, delta, alpha=common["alpha"], power=common["power"],
-                                       two_sided=common["two_sided"], deff=common["deff"], test=common["test"],
-                                       **_cm_params(m, vals))
+        kw = dict(alpha=common["alpha"], power=common["power"], two_sided=common["two_sided"], deff=common["deff"])
+        try:
+            return core.n_for_power_metric(p, m, delta, test=common["test"], **kw, **_cm_params(m, vals))
+        except ValueError as e:
+            if common["test"] != "score" or "not reachable" not in str(e):
+                raise
+            r = core.n_for_power_metric(p, m, delta, test="wald", **kw, **_cm_params(m, vals))
+            r.notes.insert(0, "the score n is unavailable here (the null value cannot be reached by moving "
+                              "sensitivity or specificity at this prevalence), so the Wald n is shown")
+            return r
     return build
 
 

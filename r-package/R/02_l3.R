@@ -218,8 +218,12 @@ n_for_power_percase <- function(x, delta, transform = "identity", alpha = 0.05,
                                 power = 0.80, two_sided = TRUE, deff = 1,
                                 skew_warn = 1.0) {
   r <- var_percase_transformed(x, transform)
-  n <- n_for_power(V_alt = r$V, delta = delta, alpha = alpha, power = power,
-                   two_sided = two_sided, deff = deff)
+  # a per-case mean is analysed with a one-sample t-test (sample SD as SE), so the
+  # sample size comes from the noncentral t; the z-based n is kept for reference
+  n_z <- n_for_power(V_alt = r$V, delta = delta, alpha = alpha, power = power,
+                     two_sided = two_sided, deff = deff)
+  n <- n_for_power_t(V_alt = r$V, delta = delta, alpha = alpha, power = power,
+                     two_sided = two_sided, deff = deff)
   if (abs(r$skew) > skew_warn) {
     warning(sprintf(
       paste0("per-case scores have skew %.2f. The variance is exact, but Wald ",
@@ -227,7 +231,7 @@ n_for_power_percase <- function(x, delta, transform = "identity", alpha = 0.05,
              "Run sensitivity_by_n_percase() before committing to n = %d."),
       r$skew, n), call. = FALSE)
   }
-  c(r, list(n = n, delta = delta))
+  c(r, list(n = n, n_z = n_z, test = "t", delta = delta))
 }
 
 # -----------------------------------------------------------------------------

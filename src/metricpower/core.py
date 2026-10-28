@@ -416,6 +416,46 @@ def n_for_power(V_alt: float, delta: float, V_null: Optional[float] = None,
     return int(math.ceil(n * deff - 1e-12))
 
 
+def n_for_power_t(V_alt: float, delta: float, alpha: float = 0.05, power: float = 0.80,
+                  two_sided: bool = True, deff: float = 1.0, n_max: int = 10_000_000) -> int:
+    """Sample size for a one-sample t-test on a per-case mean (noncentral-t power, as power.t.test).
+
+    The z formula uses sigma as if known; at n below ~50 the plug-in SE inflates the Wald type I
+    error (0.12 at n = 5, 0.07 at n = 15).  This returns the smallest n whose t-test power reaches
+    the target: power(n) = P(|T_{n-1, ncp}| > t_{n-1, 1-alpha/2}), ncp = |delta| sqrt(n / V_alt).
+    Equals the z-based n for large n.  deff multiplies the result."""
+    if delta == 0:
+        raise ValueError("delta must be non-zero")
+    from scipy.stats import nct, t as tdist
+    a = alpha / (2 if two_sided else 1)
+    n = max(2, n_for_power(V_alt, delta, None, alpha, power, two_sided, 1.0))   # z-based start (a lower bound)
+    while n < n_max:
+        df = n - 1; crit = tdist.ppf(1 - a, df); ncp = abs(delta) * math.sqrt(n / V_alt)
+        pw = 1 - nct.cdf(crit, df, ncp) + (nct.cdf(-crit, df, ncp) if two_sided else 0.0)
+        if pw >= power:
+            break
+        n += 1
+    return int(math.ceil(n * deff - 1e-12))
+
+
+def power_for_n_t(n: float, V_alt: float, delta: float, alpha: float = 0.05, two_sided: bool = True,
+                  deff: float = 1.0) -> float:
+    """Power of the one-sample t-test on a per-case mean at n (noncentral t)."""
+    from scipy.stats import nct, t as tdist
+    a = alpha / (2 if two_sided else 1); n_eff = n / deff; df = n_eff - 1
+    crit = tdist.ppf(1 - a, df); ncp = abs(delta) * math.sqrt(n_eff / V_alt)
+    return float(1 - nct.cdf(crit, df, ncp) + (nct.cdf(-crit, df, ncp) if two_sided else 0.0))
+
+
+def kink_distance(p: Vector, n: float) -> float:
+    """For volumetric similarity: |fp - fn| in standard errors at sample size n.  The metric is not
+    differentiable at fp = fn; below about 3 SE a share of samples crosses the kink, the absolute
+    value folds the sampling distribution and the delta-method variance is too large (18% at 1.6 SE)."""
+    p = np.asarray(p, dtype=float); fp, fn = p[1], p[2]
+    se = math.sqrt(max((fp + fn - (fp - fn) ** 2) / n, 1e-300))
+    return abs(fp - fn) / se
+
+
 def power_for_n(n: float, V_alt: float, delta: float, V_null: Optional[float] = None,
                 alpha: float = 0.05, two_sided: bool = True, deff: float = 1.0) -> float:
     if V_null is None:
@@ -520,6 +560,13 @@ def n_for_power_metric(p: Vector, name: str, delta: float, alpha: float = 0.05,
     if V1 < 1e-6:
         notes.append("V is essentially zero: the null sits at a stationary point of the metric, "
                      "the limit is chi-square rather than normal, and this n is not valid")
+    if name == "volumetric_similarity":
+        kd = kink_distance(p, n)
+        if kd < 3:
+            msg = (f"volumetric similarity: |fp - fn| is only {kd:.1f} SE from the kink at fp = fn at this n; "
+                   "the absolute value folds the sampling distribution and the delta-method variance is too large "
+                   "(the test is conservative). Move the operating point, or bootstrap after data collection")
+            notes.append(msg); warnings.warn(msg, stacklevel=2)
 
     e = METRIC_REGISTRY[name]
     latex_def = e["latex"]

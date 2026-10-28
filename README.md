@@ -6,9 +6,9 @@ and ~70 more. Three ways to use it:
 
 | | | |
 |---|---|---|
-| **Shiny app** (v0.1.0) | point-and-click: pick the metric, enter H0 / H1 / α / power, read n — and see the formula with your numbers and the reference | [`app.py`](app.py) — run locally in one command (below) |
-| **Python package** `metricpower` 0.1.0 | the same calculations as functions; ships the app | this repository root |
-| **R package** `metricpower` 0.1.1 | the original implementation; identical numbers | [`r-package/`](r-package/) |
+| **Shiny app** (v0.1.1) | point-and-click: pick the metric, enter H0 / H1 / α / power, read n — and see the formula with your numbers and the reference | [`app.py`](app.py) — run locally in one command (below) |
+| **Python package** `metricpower` 0.1.1 | the same calculations as functions; ships the app | this repository root |
+| **R package** `metricpower` 0.1.2 | the original implementation; identical numbers | [`r-package/`](r-package/) |
 
 ## The Shiny app
 
@@ -160,6 +160,24 @@ The same inputs in both packages (sensitivity 0.70, specificity 0.80, prevalence
 | paired Dice, V | 0.2021 | 0.2021 |
 
 `scripts/crosscheck.R` prints the R column; `scripts/crosscheck.py` prints the Python column.
+
+## What the operating-characteristics simulation showed (and what changed because of it)
+
+`validation/operating_characteristics.py` draws data at the planning operating point for every
+implemented variance and checks the empirical type I error and power at the n the package returns
+(10,000 replicates; `validation/operating_characteristics.txt`). Three findings shaped the package:
+
+- **Per-case means are sized with the t-test.** With the sample SD as the SE, the z critical value
+  inflates the type I error at small n (0.12 at n = 5, 0.07 at n = 15). Per-case metrics therefore
+  use the noncentral-t sample size (`n_for_power_t`, as R's `power.t.test`) and the `t_{n-1}` critical
+  value; the z-based n is kept in `Result.extra["n_z"]`. What remains after that is skewness.
+- **Confusion-matrix metrics: the score n is recommended.** At the Wald n, power fell to 0.77–0.79 for
+  metrics whose variance is larger under H0 than under H1 (specificity, Dice, PPV, macro-F1); at the
+  score n it was 0.79–0.81 for every metric. The app now marks the score n as recommended where the
+  null operating point is reachable, and falls back to Wald with a note where it is not.
+- **Volumetric similarity has a kink at fp = fn.** Within ~3 SE of it the delta-method variance is too
+  large (−17% at 1.6 SE; the test is conservative). `kink_distance()` measures it and
+  `n_for_power_metric()` warns.
 
 ## What to know before trusting a number
 

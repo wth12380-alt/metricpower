@@ -113,3 +113,35 @@ def test_result_carries_explanation():
     assert r.formula_latex and r.formula_numeric and r.reference
     assert "810" in r.formula_numeric[-1]
     assert all(isinstance(s, str) for s in r.references_full())
+
+
+# ---------------------------------------------------------------- t-based n for per-case means, kink guard
+def test_n_for_power_t_vs_z():
+    import metricpower as mp
+    # small n: the t-based n exceeds the z-based n; large n: they agree within a case or two
+    assert mp.n_for_power_t(0.0126, 0.0817) > mp.n_for_power(0.0126, 0.0817)
+    assert abs(mp.n_for_power_t(0.0238, 0.0145) - mp.n_for_power(0.0238, 0.0145)) <= 3
+    # power.t.test(delta = 1, sd = 1, power = 0.8, type = "one.sample") gives n = 9.94 -> 10
+    assert mp.n_for_power_t(1.0, 1.0) == 10
+    assert abs(mp.power_for_n_t(10, 1.0, 1.0) - 0.803) < 0.01
+
+
+def test_percase_result_uses_t():
+    import metricpower as mp
+    r = mp.n_for_power_group_b("ssim", mean=0.817, sd=0.1123, delta=0.0817)
+    assert r.n == 17 and r.extra["n_z"] == 15
+    assert any("t-test" in n for n in r.notes)
+
+
+def test_volumetric_similarity_kink_warning():
+    import warnings, numpy as np, metricpower as mp
+    p = mp.cell_prob_from_operating_point(0.70, 0.80, 0.50)        # fp = .10, fn = .15: 1.6 SE from the kink at n = 242
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        r = mp.n_for_power_metric(p, "volumetric_similarity", 0.0947)
+    assert any("kink" in str(x.message) for x in w) and any("kink" in n for n in r.notes)
+    assert mp.kink_distance(p, 242) < 2
+    with warnings.catch_warnings(record=True) as w:                 # far from the kink: no warning
+        warnings.simplefilter("always")
+        r = mp.n_for_power_metric(np.array([.35, .05, .25, .35]), "volumetric_similarity", 0.05)
+    assert not any("kink" in str(x.message) for x in w)

@@ -177,9 +177,15 @@ def server(input, output, session):
     @reactive.calc
     def test_recommendation():
         s = spec(); m = key()
-        if s["group"] == "B" and s["family"] in ("confusion_matrix", "multiclass"):
-            return "wald", ("AI performance studies almost always report the metric with a 95% CI computed from the data "
-                            "(plug-in SE); that is a Wald procedure, so the Wald n matches the analysis.")
+        if s["group"] == "B" and s["family"] == "confusion_matrix":
+            return "score", ("in simulation at the calculated n (10,000 replicates, every confusion-matrix metric), the score n "
+                             "gave power 0.79–0.81 throughout, whereas the Wald n fell short for metrics whose variance is larger "
+                             "under H0 than under H1 (specificity 0.78, Dice 0.77, PPV 0.79). The score n is never smaller than "
+                             "the Wald n when V0 > V1, and it matches the one-sample proportion tests in presize / MKpower / prop.test. "
+                             "Choose Wald if the analysis will report a plug-in-SE 95% CI and nothing else.")
+        if s["group"] == "B" and s["family"] == "multiclass":
+            return "wald", ("k-class metrics have no single null operating point, so only the Wald (plug-in SE) n is defined; "
+                            "it is the n for a 95% CI computed from the data.")
         if m in PROPORTION_A:
             return "score", ("diagnostic-accuracy proportions (accuracy, sensitivity, specificity, PPV, NPV) are classically "
                              "tested with a one-sample proportion test whose SE is taken under H0; presize, MKpower and "
