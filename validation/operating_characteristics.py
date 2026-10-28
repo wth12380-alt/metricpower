@@ -39,6 +39,8 @@ ap.add_argument("--delta-abs", type=float, default=None, help="absolute delta on
 ap.add_argument("--alpha", type=float, default=0.05)
 ap.add_argument("--power", type=float, default=0.80)
 ap.add_argument("--seed", type=int, default=2026)
+ap.add_argument("--only", type=str, default=None, help="comma-separated metric names to run (default: all)")
+ap.add_argument("--merge-into", type=str, default=None, help="with --only: update these metrics' rows inside an existing CSV and rewrite the report from it")
 ap.add_argument("--max-n", type=int, default=60000, help="skip a metric whose n exceeds this (rare; relative delta on a tiny mean)")
 args = ap.parse_args()
 warnings.simplefilter("ignore")
@@ -56,7 +58,7 @@ rows = []
 t0 = time.time()
 for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other"):
     for nm, e in CAT.items():
-        if e["family"] != fam:
+        if e["family"] != fam or (args.only and nm not in args.only.split(",")):
             continue
         s = e["sim"] if "sim" in e else e["make"]()
         th1, V1 = float(s["truth"]), float(s["V"])
@@ -66,7 +68,11 @@ for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other
         # per-case means are analysed with a one-sample t-test (sample SD as SE): size with the noncentral t
         # and test with t_{n-1}; everything else is a z-based Wald test
         t_based = fam == "per-case"
-        n_w = (mp.n_for_power_t if t_based else mp.n_for_power)(V1, delta, alpha=args.alpha, power=args.power)
+        folded = nm == "volumetric_similarity"          # kink at fp = fn: folded-normal test, not Wald
+        if folded:
+            n_w = mp.n_for_power_vs_folded(s["p"], delta, alpha=args.alpha, power=args.power)
+        else:
+            n_w = (mp.n_for_power_t if t_based else mp.n_for_power)(V1, delta, alpha=args.alpha, power=args.power)
         if n_w > args.max_n:
             rows.append(dict(metric=nm, family=fam, theta=th1, V=V1, n_wald=n_w, note="n above --max-n, skipped")); continue
         th0 = th1 - delta
@@ -75,12 +81,26 @@ for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other
         ok = np.isfinite(est) & np.isfinite(se) & (se > 0)
         est, se = est[ok], se[ok]
         dV = 100 * (n_w * est.var(ddof=1) / V1 - 1)
-        t1e = float(np.mean(np.abs(est - th1) > crit * se))         # H0 at the truth, data at the truth
-        pw = float(np.mean(np.abs(est - th0) > crit * se))          # H0 at theta_0, data at theta_1, n = n_Wald
-        row = dict(metric=nm, family=fam, theta=th1, V=V1, dV_pct=dV, n_wald=n_w, type1_wald=t1e, power_wald=pw, test="t" if t_based else "z",
+        if folded:
+            # equal-tailed folded-normal test with plug-in s and D from each sample
+            a_, b_ = np.array([0, 1, -1, 0.]), np.array([2, 1, 1, 0.])
+            D_ = rng.multinomial(n_w, s["p"], size=REPS) / n_w
+            rej = {th1: 0, th0: 0}
+            for q in D_:
+                Sig = np.diag(q) - np.outer(q, q); sq = math.sqrt(max(float(a_ @ Sig @ a_), 1e-12) / n_w)
+                Dq, A = float(b_ @ q), abs(float(a_ @ q))
+                for vs_null in (th1, th0):
+                    mu0 = Dq * (1 - vs_null)
+                    lo, hi = mp.vs_folded_quantile(args.alpha / 2, mu0, sq), mp.vs_folded_quantile(1 - args.alpha / 2, mu0, sq)
+                    rej[vs_null] += (A < lo) or (A > hi)
+            t1e, pw = rej[th1] / REPS, rej[th0] / REPS
+        else:
+            t1e = float(np.mean(np.abs(est - th1) > crit * se))     # H0 at the truth, data at the truth
+            pw = float(np.mean(np.abs(est - th0) > crit * se))      # H0 at theta_0, data at theta_1, n = n_Wald
+        row = dict(metric=nm, family=fam, theta=th1, V=V1, dV_pct=dV, n_wald=n_w, type1_wald=t1e, power_wald=pw, test="folded" if folded else ("t" if t_based else "z"),
                    undefined_pct=100 * (1 - ok.mean()), skew=s.get("skew", float("nan")))
         # score test for confusion-matrix metrics: null variance from the null operating point (sensitivity / specificity path)
-        if fam == "confusion" and "p" in s:
+        if fam == "confusion" and "p" in s and not folded:
             try:
                 r = mp.n_for_power_metric(s["p"], nm, delta, alpha=args.alpha, power=args.power, test="score", null_path="auto")
                 V0, n_s = float(r.V_null), int(r.n)
@@ -93,7 +113,23 @@ for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other
         print(f"{nm:<26}{fam:<12} n_W={n_w:>6}  dV={dV:+6.1f}%  typeI={t1e:.3f}  power={pw:.3f}"
               + (f"  | n_S={row['n_score']:>6} power_S={row['power_score']:.3f}" if "power_score" in row else ""), flush=True)
 
-# ------------------------------------------------------------------ write
+# ------------------------------------------------------------------ merge (optional) and write
+if args.merge_into:
+    old_rows = list(csv.DictReader(open(args.merge_into)))
+    done_names = {r["metric"] for r in rows}
+    def _num(v):
+        try: return float(v) if v not in ("", None) else None
+        except ValueError: return v
+    merged = []
+    for r in old_rows:
+        if r["metric"] in done_names:
+            merged.append(next(x for x in rows if x["metric"] == r["metric"]))
+        else:
+            rr = {k: _num(v) for k, v in r.items() if v not in ("", None)}
+            if "n_wald" in rr: rr["n_wald"] = int(rr["n_wald"])
+            if "n_score" in rr: rr["n_score"] = int(rr["n_score"])
+            merged.append(rr)
+    rows = merged
 cols = ["metric", "family", "test", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald", "V_null", "n_score", "power_score", "undefined_pct", "skew", "note"]
 with open(os.path.join(here, "operating_characteristics.csv"), "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=cols); w.writeheader()
@@ -110,12 +146,12 @@ lines.append(f"OPERATING CHARACTERISTICS   {len(done)} metrics   REPS = {REPS:,}
              + f"   alpha = {args.alpha}   target power = {args.power}")
 lines.append(f"Monte Carlo error (2 SE): variance ratio +/- {200 * SE_V:.1f}%   type I error +/- {2 * SE_RATE:.3f}   power +/- {2 * SE_POW:.3f}")
 lines.append("=" * 118)
-lines.append(f"{'metric':<26}{'family':<12}{'test':>5}{'theta':>8}{'V':>9}{'dV%':>8}{'n_W':>7}{'typeI':>7}{'power':>7}{'n_S':>7}{'pow_S':>7}{'skew':>7}  note")
+lines.append(f"{'metric':<26}{'family':<12}{'test':>7}{'theta':>8}{'V':>9}{'dV%':>8}{'n_W':>7}{'typeI':>7}{'power':>7}{'n_S':>7}{'pow_S':>7}{'skew':>7}  note")
 lines.append("-" * 118)
 for r in rows:
     def f(k, fmt, width):
         return (fmt % r[k]).rjust(width) if k in r and r[k] == r[k] else "-".rjust(width)
-    lines.append(f"{r['metric']:<26}{r['family']:<12}{r.get('test', '-'):>5}{f('theta', '%.3f', 8)}{f('V', '%.4f', 9)}{f('dV_pct', '%+.1f%%', 8)}"
+    lines.append(f"{r['metric']:<26}{r['family']:<12}{r.get('test', '-'):>7}{f('theta', '%.3f', 8)}{f('V', '%.4f', 9)}{f('dV_pct', '%+.1f%%', 8)}"
                  f"{f('n_wald', '%d', 7)}{f('type1_wald', '%.3f', 7)}{f('power_wald', '%.3f', 7)}{f('n_score', '%d', 7)}{f('power_score', '%.3f', 7)}{f('skew', '%.2f', 7)}  {r.get('note', '')}")
 lines.append("=" * 118)
 lines.append("SUMMARY")

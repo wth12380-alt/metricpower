@@ -175,9 +175,12 @@ implemented variance and checks the empirical type I error and power at the n th
   metrics whose variance is larger under H0 than under H1 (specificity, Dice, PPV, macro-F1); at the
   score n it was 0.79–0.81 for every metric. The app now marks the score n as recommended where the
   null operating point is reachable, and falls back to Wald with a note where it is not.
-- **Volumetric similarity has a kink at fp = fn.** Within ~3 SE of it the delta-method variance is too
-  large (−17% at 1.6 SE; the test is conservative). `kink_distance()` measures it and
-  `n_for_power_metric()` warns.
+- **Volumetric similarity has a kink at fp = fn.** Within ~3 SE of it the sampling distribution of VS is
+  folded normal, not normal: the delta-method variance is 17% too large (its Wald test is conservative,
+  type I 0.02) and a Wald test with the corrected variance is anti-conservative (0.08–0.10). The package
+  therefore sizes VS with the folded-normal test itself (`n_for_power_vs_folded`, `vs_folded_power`),
+  which holds the level (type I 0.043, power 0.79 at the calculated n); `kink_distance()` reports how
+  close an operating point is.
 
 ## What to know before trusting a number
 

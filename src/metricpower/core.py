@@ -511,6 +511,96 @@ def check_cell_counts(p: Vector, n: float, min_expected: float = 10) -> float:
     return m
 
 
+def vs_variance_folded(p: Vector, n: float) -> dict:
+    """Per-unit variance of volumetric similarity, VS = 1 - |Y|/D with Y = fp - fn and D = 2tp + fp + fn,
+    using the folded-normal distribution of |Y| instead of the delta method's linearisation.
+
+    Y is a linear function of the cell proportions, so Y ~ N(mu, sigma^2/n) by the CLT; |Y| is then
+    folded normal with E|Y| = 2 s phi(mu/s) + mu (2 Phi(mu/s) - 1) and Var|Y| = mu^2 + s^2 - (E|Y|)^2,
+    s = sigma/sqrt(n).  The ratio |Y|/D is expanded to first order in D (which is smooth), with
+    Cov(|Y|, D) from the joint normality of (Y, D).  The delta-method variance is the limit
+    |mu|/s -> infinity; at 1.6 SE from the kink it overstates V by 16%.  The variance depends on n,
+    so the result is returned per unit (multiply by 1/n for Var(VS-hat)) together with the small-n
+    bias of the point estimate, E[VS-hat] - VS = -(E|Y| - |mu|)/D."""
+    p = np.asarray(p, dtype=float)
+    a = np.array([0.0, 1.0, -1.0, 0.0]); b = np.array([2.0, 1.0, 1.0, 0.0])
+    Sig = np.diag(p) - np.outer(p, p)
+    mu = float(a @ p); D = float(b @ p)
+    var_y, var_d, cov_yd = float(a @ Sig @ a) / n, float(b @ Sig @ b) / n, float(a @ Sig @ b) / n
+    s = math.sqrt(max(var_y, 1e-300)); r = mu / s
+    EA = 2 * s * norm.pdf(r) + mu * (2 * norm.cdf(r) - 1)                   # E|Y|
+    VarA = mu ** 2 + s ** 2 - EA ** 2                                       # Var|Y|
+    EY2sgn = (mu ** 2 + s ** 2) * (2 * norm.cdf(r) - 1) + 2 * mu * s * norm.pdf(r)   # E[Y^2 sign(Y)]
+    cov_ay = EY2sgn - EA * mu                                               # Cov(|Y|, Y)
+    cov_ad = cov_yd / var_y * cov_ay                                        # Cov(|Y|, D) via D | Y regression
+    var_vs = VarA / D ** 2 + EA ** 2 * var_d / D ** 4 - 2 * EA * cov_ad / D ** 3
+    return dict(V=var_vs * n, bias=-(EA - abs(mu)) / D, kink_se=abs(mu) / s, estimate=1 - abs(mu) / D)
+
+
+def vs_folded_cdf(c: float, mu: float, s: float) -> float:
+    """P(|Y| <= c) for Y ~ N(mu, s^2) (folded normal)."""
+    return float(norm.cdf((c - mu) / s) - norm.cdf((-c - mu) / s))
+
+
+def vs_folded_quantile(q: float, mu: float, s: float) -> float:
+    from scipy.optimize import brentq
+    return float(brentq(lambda c: vs_folded_cdf(c, mu, s) - q, 0.0, abs(mu) + 12 * s))
+
+
+def vs_folded_power(n: float, p1: Vector, vs0: float, alpha: float = 0.05, two_sided: bool = True) -> float:
+    """Power of the folded-normal test of H0: VS = vs0 for volumetric similarity when the truth is p1.
+
+    VS = 1 - |Y|/D with Y = fp - fn ~ N(mu, s^2), s^2 = Var(Y)/n, so |Y| is folded normal and VS is a
+    monotone function of |Y|.  Under H0, |mu| = mu0 = D (1 - vs0); the equal-tailed test rejects when
+    |Y-hat| falls below the alpha/2 or above the 1 - alpha/2 quantile of the folded normal with mean mu0
+    (one-sided: only the tail toward the alternative).  D is taken at the operating point; its sampling
+    variability is second order.  The Wald test with the delta-method SE is conservative near the kink
+    (type I 0.02 at 1.6 SE), the Wald test with the folded-normal SE is anti-conservative (0.08-0.10),
+    because the sampling distribution there is folded, not normal; this test uses the folded
+    distribution itself and holds the nominal level."""
+    p1 = np.asarray(p1, dtype=float)
+    a = np.array([0.0, 1.0, -1.0, 0.0]); b = np.array([2.0, 1.0, 1.0, 0.0])
+    Sig = np.diag(p1) - np.outer(p1, p1); D = float(b @ p1); mu1 = abs(float(a @ p1))
+    s = math.sqrt(max(float(a @ Sig @ a) / n, 1e-300)); mu0 = D * (1 - vs0)
+    if two_sided:
+        lo, hi = vs_folded_quantile(alpha / 2, mu0, s), vs_folded_quantile(1 - alpha / 2, mu0, s)
+        return vs_folded_cdf(lo, mu1, s) + 1 - vs_folded_cdf(hi, mu1, s)
+    if mu1 > mu0:                      # alternative: VS lower, |Y| larger
+        return 1 - vs_folded_cdf(vs_folded_quantile(1 - alpha, mu0, s), mu1, s)
+    return vs_folded_cdf(vs_folded_quantile(alpha, mu0, s), mu1, s)
+
+
+def n_for_power_vs_folded(p1: Vector, delta: float, alpha: float = 0.05, power: float = 0.80,
+                          two_sided: bool = True, deff: float = 1.0, n_max: int = 10_000_000) -> int:
+    """Smallest n at which the folded-normal test for volumetric similarity reaches the target power."""
+    p1 = np.asarray(p1, dtype=float); vs1 = float(metric_volumetric_similarity(p1)); vs0 = vs1 - delta
+    lo = 4
+    hi = max(8, 2 * n_for_power(delta_var(p1, metric_volumetric_similarity, grad=grad_volumetric_similarity), delta,
+                                None, alpha, power, two_sided, 1.0))
+    while vs_folded_power(hi, p1, vs0, alpha, two_sided) < power and hi < n_max:
+        hi *= 2
+    while hi - lo > 1:                                        # bisection on the (monotone) power curve
+        mid = (lo + hi) // 2
+        if vs_folded_power(mid, p1, vs0, alpha, two_sided) >= power: hi = mid
+        else: lo = mid
+    return int(math.ceil(hi * deff - 1e-12))
+
+
+def _n_for_power_vs(p1: Vector, p0, delta, alpha, power, two_sided, deff) -> dict:
+    """Fixed-point iteration for the n-dependent folded-normal variance of volumetric similarity."""
+    za, zb = _z(alpha, two_sided), float(norm.ppf(power))
+    n = max(n_for_power(delta_var(p1, metric_volumetric_similarity, grad=grad_volumetric_similarity), delta,
+                        None, alpha, power, two_sided, 1.0), 4)
+    for _ in range(100):
+        V1 = vs_variance_folded(p1, n)["V"]
+        V0 = vs_variance_folded(p0, n)["V"] if p0 is not None else V1
+        n_new = int(math.ceil((za * math.sqrt(V0) + zb * math.sqrt(V1)) ** 2 / delta ** 2 - 1e-12))
+        if n_new == n:
+            break
+        n = n_new
+    return dict(n=int(math.ceil(n * deff - 1e-12)), V1=V1, V0=V0)
+
+
 def n_for_power_metric(p: Vector, name: str, delta: float, alpha: float = 0.05,
                        power: float = 0.80, two_sided: bool = True, deff: float = 1.0,
                        test: str = "wald", null_path: str = "auto", **params) -> Result:
@@ -561,12 +651,18 @@ def n_for_power_metric(p: Vector, name: str, delta: float, alpha: float = 0.05,
         notes.append("V is essentially zero: the null sits at a stationary point of the metric, "
                      "the limit is chi-square rather than normal, and this n is not valid")
     if name == "volumetric_similarity":
-        kd = kink_distance(p, n)
-        if kd < 3:
-            msg = (f"volumetric similarity: |fp - fn| is only {kd:.1f} SE from the kink at fp = fn at this n; "
-                   "the absolute value folds the sampling distribution and the delta-method variance is too large "
-                   "(the test is conservative). Move the operating point, or bootstrap after data collection")
-            notes.append(msg); warnings.warn(msg, stacklevel=2)
+        # |fp - fn| has a kink at fp = fn.  Near it the sampling distribution of VS is folded normal, not
+        # normal: the Wald test with the delta-method SE is conservative and the one with the folded-normal
+        # SE is anti-conservative.  The sample size is therefore taken from the folded-normal test itself.
+        n_f = n_for_power_vs_folded(p, delta, alpha, power, two_sided, deff)
+        f = vs_variance_folded(p, n_f)
+        extra_vs = dict(n_folded=n_f, n_wald_delta=n_wald, n_score_delta=n_score, V_folded=f["V"], bias_folded=f["bias"], kink_se=f["kink_se"])
+        n = n_f
+        notes.append(f"volumetric similarity: |fp - fn| is {f['kink_se']:.1f} SE from the kink at fp = fn at n = {n_f}. "
+                     f"n = {n_f} is the sample size of the folded-normal test (vs_folded_power), which is the test to run: "
+                     f"the Wald test with the delta-method SE is conservative there (delta-method n = {n_wald}) and the point "
+                     f"estimate is biased by {f['bias']:+.4f}. The folded-normal variance is {f['V']:.4f} against the "
+                     f"delta-method {V1:.4f}")
 
     e = METRIC_REGISTRY[name]
     latex_def = e["latex"]
@@ -608,7 +704,7 @@ def n_for_power_metric(p: Vector, name: str, delta: float, alpha: float = 0.05,
                               deff=deff, test=test, **params),
                   steps=steps, formula_latex=formula_latex, formula_numeric=formula_numeric,
                   reference=refs, notes=notes,
-                  extra=dict(n_wald=n_wald, n_score=n_score, p_null=None if p0 is None else p0.tolist(),
+                  extra=dict(n_wald=n_wald, n_score=n_score, p_null=None if p0 is None else p0.tolist(), **(extra_vs if name == 'volumetric_similarity' else {}),
                              null_path=used, min_expected_cell=m))
 
 

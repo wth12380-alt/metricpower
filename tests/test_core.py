@@ -133,15 +133,16 @@ def test_percase_result_uses_t():
     assert any("t-test" in n for n in r.notes)
 
 
-def test_volumetric_similarity_kink_warning():
-    import warnings, numpy as np, metricpower as mp
-    p = mp.cell_prob_from_operating_point(0.70, 0.80, 0.50)        # fp = .10, fn = .15: 1.6 SE from the kink at n = 242
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        r = mp.n_for_power_metric(p, "volumetric_similarity", 0.0947)
-    assert any("kink" in str(x.message) for x in w) and any("kink" in n for n in r.notes)
-    assert mp.kink_distance(p, 242) < 2
-    with warnings.catch_warnings(record=True) as w:                 # far from the kink: no warning
-        warnings.simplefilter("always")
-        r = mp.n_for_power_metric(np.array([.35, .05, .25, .35]), "volumetric_similarity", 0.05)
-    assert not any("kink" in str(x.message) for x in w)
+def test_volumetric_similarity_folded_test():
+    import numpy as np, metricpower as mp
+    p = mp.cell_prob_from_operating_point(0.70, 0.80, 0.50)        # fp = .10, fn = .15: 1.6 SE from the kink
+    r = mp.n_for_power_metric(p, "volumetric_similarity", 0.0947)
+    assert r.n == r.extra["n_folded"] and r.extra["kink_se"] < 2 and any("folded" in n for n in r.notes)
+    assert abs(mp.vs_folded_power(r.n, p, r.null_value) - 0.80) < 0.01          # power reaches the target at n
+    assert mp.vs_folded_power(r.n - 10, p, r.null_value) < 0.80
+    f = mp.vs_variance_folded(p, 242)
+    assert 0.80 < f["V"] / r.extra["n_wald_delta"] * 242 / r.V_alt * r.extra["n_wald_delta"] / 242 < 0.9 or 0.80 < f["V"] / r.V_alt < 0.90   # ~16% below the delta-method V
+    # far from the kink the folded-normal test and the delta method agree closely
+    q = np.array([.35, .05, .25, .35])
+    r2 = mp.n_for_power_metric(q, "volumetric_similarity", 0.05)
+    assert mp.kink_distance(q, r2.n) > 5 and abs(r2.n - r2.extra["n_wald_delta"]) / r2.extra["n_wald_delta"] < 0.15
