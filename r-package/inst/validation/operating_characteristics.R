@@ -223,7 +223,9 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
     # per-case means are analysed with a one-sample t-test (sample SD as SE): size with the
     # noncentral t (power.t.test) and test with qt(., n - 1); everything else is a z-based Wald test
     t_based <- fam == "per-case"
-    n_w <- if (t_based) n_for_power_t(V1, delta, alpha = ALPHA, power = POWER)
+    folded  <- nm == "volumetric_similarity"       # kink at fp = fn: folded-normal test, not Wald
+    n_w <- if (folded) n_for_power_vs_folded(s$p, delta, alpha = ALPHA, power = POWER)
+           else if (t_based) n_for_power_t(V1, delta, alpha = ALPHA, power = POWER)
            else n_for_power(V1, delta, alpha = ALPHA, power = POWER)
     if (n_w > MAX_N) { row$n_wald <- n_w; row$note <- "n above MAX_N, skipped"; rows[[nm]] <- row; next }
     th0 <- th1 - delta
@@ -233,12 +235,29 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
     est <- es[ok, 1]; se <- es[ok, 2]
     row$dV_pct      <- 100 * (n_w * stats::var(est) / V1 - 1)
     row$n_wald      <- n_w
-    row$test        <- if (t_based) "t" else "z"
-    row$type1_wald  <- mean(abs(est - th1) > crit * se)    # H0 at the truth
-    row$power_wald  <- mean(abs(est - th0) > crit * se)    # H0 at theta_0, n = n_W
+    row$test        <- if (folded) "folded" else if (t_based) "t" else "z"
+    if (folded) {
+      # equal-tailed folded-normal test with plug-in s and D from each sample
+      a <- c(0, 1, -1, 0); b <- c(2, 1, 1, 0)
+      Q <- stats::rmultinom(REPS, n_w, s$p) / n_w
+      rej <- c(t1 = 0, pw = 0)
+      for (j in seq_len(REPS)) {
+        q <- Q[, j]; Sig <- diag(q) - tcrossprod(q)
+        sq <- sqrt(max(drop(t(a) %*% Sig %*% a), 1e-12) / n_w); Dq <- sum(b * q); A <- abs(sum(a * q))
+        for (k in 1:2) {
+          mu0 <- Dq * (1 - c(th1, th0)[k])
+          lo <- vs_folded_quantile(ALPHA / 2, mu0, sq); hi <- vs_folded_quantile(1 - ALPHA / 2, mu0, sq)
+          rej[k] <- rej[k] + ((A < lo) || (A > hi))
+        }
+      }
+      row$type1_wald <- rej[["t1"]] / REPS; row$power_wald <- rej[["pw"]] / REPS
+    } else {
+      row$type1_wald  <- mean(abs(est - th1) > crit * se)    # H0 at the truth
+      row$power_wald  <- mean(abs(est - th0) > crit * se)    # H0 at theta_0, n = n_W
+    }
     row$undefined_pct <- 100 * mean(!ok)
     # score test for confusion-matrix metrics: null variance from the null operating point
-    if (fam == "confusion") {
+    if (fam == "confusion" && !folded) {
       r <- tryCatch(suppressWarnings(do.call(n_for_power_metric,
              c(list(p = p4, name = nm, delta = delta, alpha = ALPHA, power = POWER,
                     test = "score", null_path = "auto"), e$args))), error = function(err) NULL)

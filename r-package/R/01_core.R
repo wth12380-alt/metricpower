@@ -427,6 +427,46 @@ power_for_n_t <- function(n, V_alt, delta, alpha = 0.05, two_sided = TRUE, deff 
                       alternative = if (two_sided) "two.sided" else "one.sided")$power
 }
 
+#' Folded-normal test for volumetric similarity (VS = 1 - |fp - fn| / (2tp + fp + fn))
+#'
+#' Y = fp - fn is a linear function of the cell proportions, so Y ~ N(mu, s^2) with
+#' s^2 = Var(Y)/n, and |Y| is folded normal. Near the kink at fp = fn the sampling
+#' distribution of VS is therefore folded, not normal: the Wald test with the
+#' delta-method SE is conservative (type I 0.02 at 1.6 SE) and the Wald test with the
+#' folded-normal SE is anti-conservative (0.08-0.10). This test uses the folded
+#' distribution itself and holds the nominal level; D is taken at the operating point.
+vs_folded_cdf <- function(cc, mu, s) stats::pnorm((cc - mu) / s) - stats::pnorm((-cc - mu) / s)
+vs_folded_quantile <- function(q, mu, s)
+  stats::uniroot(function(cc) vs_folded_cdf(cc, mu, s) - q, c(0, abs(mu) + 12 * s), tol = 1e-10)$root
+
+#' Power of the equal-tailed folded-normal test of H0: VS = vs0 when the truth is p1
+vs_folded_power <- function(n, p1, vs0, alpha = 0.05, two_sided = TRUE) {
+  a <- c(0, 1, -1, 0); b <- c(2, 1, 1, 0)
+  Sig <- diag(p1) - tcrossprod(p1); D <- sum(b * p1); mu1 <- abs(sum(a * p1))
+  s <- sqrt(max(drop(t(a) %*% Sig %*% a) / n, 1e-300)); mu0 <- D * (1 - vs0)
+  if (two_sided) {
+    lo <- vs_folded_quantile(alpha / 2, mu0, s); hi <- vs_folded_quantile(1 - alpha / 2, mu0, s)
+    return(vs_folded_cdf(lo, mu1, s) + 1 - vs_folded_cdf(hi, mu1, s))
+  }
+  if (mu1 > mu0) 1 - vs_folded_cdf(vs_folded_quantile(1 - alpha, mu0, s), mu1, s)
+  else vs_folded_cdf(vs_folded_quantile(alpha, mu0, s), mu1, s)
+}
+
+#' Smallest n at which the folded-normal test for volumetric similarity reaches the target power
+n_for_power_vs_folded <- function(p1, delta, alpha = 0.05, power = 0.80, two_sided = TRUE, deff = 1) {
+  vs0 <- metric_volumetric_similarity(p1) - delta
+  lo <- 4
+  hi <- max(8, 2 * n_for_power(delta_var(p1, metric_volumetric_similarity,
+                                         grad = grad_volumetric_similarity), delta,
+                               alpha = alpha, power = power, two_sided = two_sided))
+  while (vs_folded_power(hi, p1, vs0, alpha, two_sided) < power && hi < 1e7) hi <- hi * 2
+  while (hi - lo > 1) {
+    mid <- (lo + hi) %/% 2
+    if (vs_folded_power(mid, p1, vs0, alpha, two_sided) >= power) hi <- mid else lo <- mid
+  }
+  ceiling(hi * deff)
+}
+
 #' Volumetric similarity: distance of |fp - fn| from the kink at fp = fn, in SEs
 #'
 #' The metric is not differentiable at fp = fn. Below about 3 SE a share of samples
@@ -572,16 +612,20 @@ n_for_power_metric <- function(p, name, delta, alpha = 0.05, power = 0.80,
                 alpha = alpha, power = power,
                 two_sided = two_sided, deff = deff)
 
+  n_folded <- NA_integer_
   if (name == "volumetric_similarity") {
-    kd <- kink_distance(p, if (test == "wald") n_wald else n_score)
-    if (is.finite(kd) && kd < 3)
-      warning(sprintf(paste0("volumetric similarity: |fp - fn| is only %.1f SE from the kink at ",
-                             "fp = fn at this n; the delta-method variance is too large there ",
-                             "(the test is conservative). Move the operating point, or bootstrap ",
-                             "after data collection."), kd), call. = FALSE)
+    # kink at fp = fn: the sampling distribution of VS is folded normal there, so the
+    # sample size comes from the folded-normal test (vs_folded_power), not from Wald
+    n_folded <- n_for_power_vs_folded(p, delta, alpha, power, two_sided, deff)
+    kd <- kink_distance(p, n_folded)
+    message(sprintf(paste0("volumetric similarity: |fp - fn| is %.1f SE from the kink at fp = fn at ",
+                           "n = %d. n is the sample size of the folded-normal test (the test to run); ",
+                           "the delta-method Wald n would be %d and its test is conservative near the kink."),
+                    kd, n_folded, n_wald))
   }
 
-  list(n = if (test == "wald") n_wald else n_score,
+  list(n = if (!is.na(n_folded)) n_folded else if (test == "wald") n_wald else n_score,
+       n_folded = n_folded,
        test = test,
        estimate = theta1, null_value = theta1 - delta,
        V_alt = V1, V_null = V0, p_null = p0, null_path = used_path,
