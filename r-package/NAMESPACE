@@ -1,0 +1,3 @@
+exportPattern("^[^\\.]")
+importFrom(stats, qnorm, pnorm, var, sd, rmultinom, rbinom, rnorm, cor, uniroot,
+           rpois, rnbinom, rbeta, rgamma, rgeom, plogis, runif, rt)

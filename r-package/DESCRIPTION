@@ -1,0 +1,24 @@
+Package: metricpower
+Type: Package
+Title: Sample Size and Power for AI Performance Metrics
+Version: 0.1.1
+Authors@R: person("Theo", "Wu", email = "tw73@rice.edu", role = c("aut", "cre"))
+Description: Sampling variances and sample-size calculations for the
+    performance metrics used to evaluate medical-imaging AI. Metrics whose
+    sample size is already solved by an established package are routed to it
+    (the L4 layer); metrics whose variance is published or elementary but not
+    inverted to a sample size anywhere are implemented here (the L3 layer),
+    across five estimator families: functions of a confusion matrix,
+    multiclass averages, count rates, per-case means, and U-statistics.
+    Every implemented variance is validated against simulation.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports: stats
+Suggests: presize, MKpower, pROC, kappaSize, ICC.Sample.Size,
+        pmvalsampsize, RJafroc, pwr, powerSurvEpi
+Collate: '01_core.R' '02_l3.R' '03_l3_all.R' '04_l4_wrap.R' 'zzz.R'
+RoxygenNote: 7.3.0
+NeedsCompilation: no
+Packaged: 2026-09-30 20:14:10 UTC; root
+Author: Theo Wu [aut, cre]
+Maintainer: Theo Wu <tw73@rice.edu>
