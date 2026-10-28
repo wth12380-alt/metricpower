@@ -27,6 +27,7 @@
 #  Writes operating_characteristics.csv and prints the Results sentence.
 # =============================================================================
 
+SCRIPT_VERSION <- "2026-10-28c"
 if (!exists("REPS"))       REPS       <- 10000
 if (!exists("DELTA_FRAC")) DELTA_FRAC <- 0.10
 if (!exists("DELTA_ABS"))  DELTA_ABS  <- NA        # e.g. 0.05 for an absolute delta
@@ -233,7 +234,9 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
     es <- s$est_se(n_w, REPS)
     ok <- is.finite(es[, 1]) & is.finite(es[, 2]) & es[, 2] > 0
     est <- es[ok, 1]; se <- es[ok, 2]
-    row$dV_pct      <- 100 * (n_w * stats::var(est) / V1 - 1)
+    row$dV_pct      <- 100 * (n_w * stats::var(est) / V1 - 1)        # simulated vs analytic (delta-method) V
+    if (folded)     # VS: also vs the folded-normal V, which is the relevant one near the kink
+      row$dV_folded_pct <- 100 * (n_w * stats::var(est) / vs_variance_folded(s$p, n_w)$V - 1)
     row$n_wald      <- n_w
     row$test        <- if (folded) "folded" else if (t_based) "t" else "z"
     if (folded) {
@@ -268,8 +271,10 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
       } else row$note <- "score: null value unreachable"
     }
     rows[[nm]] <- row
-    cat(sprintf("%-26s%-12s n_W=%6d  dV=%+6.1f%%  typeI=%.3f  power=%.3f%s\n", nm, fam, n_w,
-                row$dV_pct, row$type1_wald, row$power_wald,
+    cat(sprintf("%-26s%-12s n_W=%6d  dV=%+6.1f%%%s  typeI=%.3f  power=%.3f%s\n", nm, fam, n_w,
+                row$dV_pct,
+                if (folded) sprintf(" (vs delta V; vs folded V %+.1f%%)", row$dV_folded_pct) else "",
+                row$type1_wald, row$power_wald,
                 if (!is.null(row$power_score)) sprintf("  | n_S=%6d power_S=%.3f", row$n_score, row$power_score) else ""))
     flush.console()
   }
@@ -279,7 +284,7 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
 # Table, summary, Results sentence
 # -----------------------------------------------------------------------------
 
-cols <- c("metric", "family", "test", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald",
+cols <- c("metric", "family", "test", "theta", "V", "dV_pct", "dV_folded_pct", "n_wald", "type1_wald", "power_wald",
           "V_null", "n_score", "power_score", "undefined_pct", "skew", "note")
 tab <- do.call(rbind, lapply(rows, function(r) {
   as.data.frame(lapply(setNames(cols, cols), function(k) if (is.null(r[[k]])) NA else r[[k]]),
@@ -291,8 +296,8 @@ dv <- done$dV_pct; t1 <- done$type1_wald; pw <- done$power_wald
 off_pow <- done[abs(done$power_wald - POWER) > 0.02, ]
 off_t1  <- done[abs(done$type1_wald - ALPHA) > 0.01, ]
 cat("\n", strrep("=", 118), "\n", sep = "")
-cat(sprintf("OPERATING CHARACTERISTICS   %d metrics   REPS = %s   delta = %s   alpha = %s   target power = %s\n",
-            nrow(done), format(REPS, big.mark = ","),
+cat(sprintf("OPERATING CHARACTERISTICS   %d metrics   REPS = %s   script %s   delta = %s   alpha = %s   target power = %s\n",
+            nrow(done), format(REPS, big.mark = ","), SCRIPT_VERSION,
             if (!is.na(DELTA_ABS)) sprintf("%s (absolute)", DELTA_ABS) else sprintf("%.0f%% of the metric value", 100 * DELTA_FRAC),
             ALPHA, POWER))
 cat(sprintf("Monte Carlo error (2 SE): variance ratio +/- %.1f%%   type I error +/- %.3f   power +/- %.3f\n",
@@ -301,8 +306,12 @@ cat(strrep("=", 118), "\n", sep = "")
 print(tab[, c("metric", "family", "test", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald", "n_score", "power_score", "skew")],
       digits = 3, row.names = FALSE)
 cat(strrep("=", 118), "\nSUMMARY\n", sep = "")
-cat(sprintf("  simulated vs analytic variance: %+.1f%% to %+.1f%%; %d of %d within the MC noise band\n",
-            min(dv), max(dv), sum(abs(dv) <= 200 * SE_V), nrow(done)))
+nf <- is.na(done$dV_folded_pct)
+cat(sprintf("  simulated vs analytic (delta-method) variance, %d metrics: %+.1f%% to %+.1f%%; %d of %d within the MC noise band\n",
+            sum(nf), min(dv[nf]), max(dv[nf]), sum(abs(dv[nf]) <= 200 * SE_V), sum(nf)))
+for (i in which(!nf))
+  cat(sprintf("  %s: %+.1f%% vs the delta-method V (expected: the distribution is folded at the kink), %+.1f%% vs the folded-normal V; sized and tested with the folded-normal test\n",
+              done$metric[i], done$dV_pct[i], done$dV_folded_pct[i]))
 cat(sprintf("  type I error (nominal %s): %.3f to %.3f; %d outside %s +/- 0.01: %s\n", ALPHA, min(t1), max(t1),
             nrow(off_t1), ALPHA, paste(sprintf("%s (%.3f)", off_t1$metric, off_t1$type1_wald), collapse = ", ")))
 cat(sprintf("  power at n_Wald (target %s): %.3f to %.3f; %d outside +/- 0.02: %s\n", POWER, min(pw), max(pw),
