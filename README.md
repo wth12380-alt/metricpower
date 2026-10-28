@@ -1,12 +1,55 @@
-# metricpower (Python)
+# metricpower
 
-A priori **sample size and power for the performance metrics used to evaluate
-medical-imaging AI** — Dice, IoU, MCC, sensitivity, AUC, kappa, Brier, false
-positives per image and ~70 more — with an interactive Shiny app that shows,
-for every number it returns, the formula it came from and the reference.
+**A priori sample size and power for the performance metrics used to evaluate AI/ML
+models** — Dice, IoU, MCC, sensitivity, AUC, kappa, Brier, false positives per image
+and ~70 more. Three ways to use it:
 
-This is the Python counterpart of the R package `metricpower`. The two share
-one design and give the same numbers (see *Cross-check with R* below).
+| | | |
+|---|---|---|
+| **Shiny app** (v0.1.0) | point-and-click: pick the metric, enter H0 / H1 / α / power, read n — and see the formula with your numbers and the reference | [`app.py`](app.py) — run locally in one command (below) |
+| **Python package** `metricpower` 0.1.0 | the same calculations as functions; ships the app | this repository root |
+| **R package** `metricpower` 0.1.1 | the original implementation; identical numbers | [`r-package/`](r-package/) |
+
+## The Shiny app
+
+![metricpower app](docs/app_screenshot.png)
+
+```bash
+pip install "metricpower[app] @ git+https://github.com/wth12380-alt/metricpower.git"
+shiny run app.py            # or: python -m metricpower.app   → open http://127.0.0.1:8000
+```
+
+or from a clone: `pip install -e ".[app]"` then `shiny run app.py`.
+
+**Left panel** — pick the metric from a drop-down whose grey headers are the problem
+categories (confusion-matrix classification, precision–recall and ranking, ROC/AUC,
+calibration, segmentation and overlap, distance/geometry, regression error,
+correlation/agreement/reliability, information theory, fairness/survival/decision/NLP/
+readability, image quality); a metric that belongs to two categories is listed under
+both. Enter the operating point or pilot values that define H1, the null value, alpha,
+power and (optionally) the clustering design effect. Where Wald and score conventions
+give different n, the recommended one is marked and the difference explained.
+**Right panel** — the general formula, the same formula with your numbers substituted
+(z-values to six decimals), every intermediate quantity, the caveats to read before
+trusting the number, and the reference. Formulas render with a bundled copy of MathJax,
+so the app works offline. Only metrics that can be sized a priori appear in the app.
+
+Hosted version: [[not yet deployed — `rsconnect deploy shiny . --name <account> --title metricpower`]]
+
+## The R package
+
+```r
+remotes::install_github("wth12380-alt/metricpower", subdir = "r-package")
+library(metricpower)
+p <- cell_prob_from_operating_point(sensitivity = 0.70, specificity = 0.80, prevalence = 0.50)
+n_for_power_l3("dsc_f1", p = p, delta = 0.05)$n     # 810
+```
+
+See [`r-package/README.md`](r-package/README.md) for the full R interface and
+[`r-package/inst/validation/`](r-package/inst/validation/) for the R validation scripts
+(`validate_all.R`, `operating_characteristics.R`).
+
+## The Python package
 
 ## The one idea
 
@@ -77,30 +120,6 @@ mp.check_delta_reliable(p, "dsc_f1", n=60)          # is the delta method trustw
 Every `Result` carries `n`, `estimate`, `null_value`, `V_alt`, `V_null`,
 `steps`, `formula_latex`, `formula_numeric`, `reference` and `notes`.
 
-## The app
-
-```bash
-shiny run app.py            # then open http://127.0.0.1:8000
-# or
-python -m metricpower.app
-```
-
-Left: pick the metric from a drop-down whose grey headers are the problem
-categories (confusion-matrix classification, precision–recall and ranking,
-ROC/AUC, calibration, segmentation and overlap, distance/geometry, regression
-error, correlation/agreement/reliability, information theory, fairness/
-survival/decision/NLP/readability, plus image quality). A metric that belongs
-to two categories is listed under both. Enter the null and alternative, alpha,
-power, and (optionally) the clustering design effect; where Wald and score
-conventions differ, the recommended one is marked and explained. Right: the
-general formula, the same formula with your numbers substituted (z-values to
-six decimals), every intermediate quantity, the caveats and the reference.
-Formulas render with a bundled copy of MathJax (Apache-2.0), so the app works
-offline. Only metrics that can be sized a priori appear in the app; the
-Group C refusals are available from `metricpower.explain_group_c()`.
-
-Deploy to shinyapps.io or Posit Connect with `rsconnect deploy shiny . --name <account> --title metricpower`.
-
 ## Experimental: a delta-method variance for corpus BLEU
 
 `metricpower/bleu.py` derives an analytic variance for corpus BLEU (it is a smooth
@@ -112,12 +131,14 @@ until the derivation has been reviewed.
 ## Check it yourself
 
 ```bash
-pytest                                       # 71 unit tests, ~5 s; reproduce the R package's numbers
-python validation/validate_all.py            # 85-metric Monte Carlo validation, 10 000 replicates (~30 s)
-bash scripts/check.sh                        # both, plus an app smoke test
+pytest                                            # 71 unit tests, ~5 s; reproduce the R package's numbers
+python validation/validate_all.py                 # 85-variance Monte Carlo validation, 10 000 replicates (~30 s)
+python validation/operating_characteristics.py    # type I error and power at the calculated n, every metric (~20 min)
+bash scripts/check.sh                             # tests + validation + an app smoke test
 ```
 
-`validation/validation_output.txt` is the table from the last full run.
+`validation/validation_output.txt` and `validation/operating_characteristics.txt` are the tables from the last full runs.
+
 
 ## Cross-check with R
 
@@ -151,6 +172,8 @@ The same inputs in both packages (sensitivity 0.70, specificity 0.80, prevalence
 ## Layout
 
 ```
+r-package/        the R package (DESCRIPTION, R/, inst/validation/, bundled tarball)
+app.py            Shiny entry point
 src/metricpower/
   core.py         engine: cell probabilities, delta method, 21 confusion-matrix metrics with gradients,
                   n/power/precision, paired comparison, clustering, small-sample checks, weighted kappa
