@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metricpower"
+version = "0.1.0"
+description = "A priori sample size and power for the performance metrics used to evaluate medical-imaging AI"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Theo Wu" }]
+keywords = ["sample size", "power", "medical imaging", "AI", "Dice", "AUC", "delta method"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+dependencies = ["numpy>=1.22", "scipy>=1.8"]
+
+[project.optional-dependencies]
+app = ["shiny>=1.0"]
+dev = ["pytest>=7", "shiny>=1.0", "playwright>=1.40"]
+
+[project.urls]
+Homepage = "https://github.com/wth12380-alt/metricpower"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"metricpower.app" = ["www/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

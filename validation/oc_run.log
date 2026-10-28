@@ -1,0 +1,186 @@
+accuracy                  confusion    n_W=   262  dV=  -1.1%  typeI=0.046  power=0.806  | n_S=   293 power_S=0.797
+sensitivity               confusion    n_W=   673  dV=  +2.4%  typeI=0.057  power=0.788  | n_S=   725 power_S=0.807
+specificity               confusion    n_W=   393  dV=  +1.4%  typeI=0.056  power=0.776  | n_S=   463 power_S=0.794
+ppv                       confusion    n_W=   499  dV=  -1.6%  typeI=0.053  power=0.792  | n_S=   714 power_S=0.800
+npv                       confusion    n_W=   536  dV=  +3.7%  typeI=0.056  power=0.784  | n_S=   545 power_S=0.794
+balanced_accuracy         confusion    n_W=   259  dV=  +0.7%  typeI=0.054  power=0.790  | n_S=   277 power_S=0.807
+youden                    confusion    n_W=  2324  dV=  +0.1%  typeI=0.048  power=0.793  | n_S=  2400 power_S=0.799
+dsc_f1                    confusion    n_W=   373  dV=  -0.3%  typeI=0.054  power=0.778  | n_S=   447 power_S=0.794
+fbeta                     confusion    n_W=   510  dV=  +1.2%  typeI=0.053  power=0.785  | n_S=   474 power_S=0.762
+iou                       confusion    n_W=   935  dV=  -0.2%  typeI=0.052  power=0.798  | n_S=   952 power_S=0.799
+mcc                       confusion    n_W=  2300  dV=  +0.8%  typeI=0.050  power=0.797  | n_S=  2389 power_S=0.798
+expected_cost             confusion    n_W=  3398  dV=  -0.5%  typeI=0.049  power=0.804
+net_benefit               confusion    n_W=  1863  dV=  -2.2%  typeI=0.046  power=0.799  | n_S=  1798 power_S=0.805
+markedness                confusion    n_W=  2292  dV=  +0.4%  typeI=0.050  power=0.791  | n_S=  2406 power_S=0.805
+balanced_error_rate       confusion    n_W=  2324  dV=  -2.5%  typeI=0.048  power=0.814
+false_discovery_rate      confusion    n_W=  6105  dV=  -0.4%  typeI=0.048  power=0.805
+false_omission_rate       confusion    n_W=  3806  dV=  +0.1%  typeI=0.050  power=0.810
+class_error               confusion    n_W=  3663  dV=  +1.0%  typeI=0.051  power=0.807
+false_referral_rate       confusion    n_W=  6105  dV=  +0.8%  typeI=0.051  power=0.802
+volumetric_similarity     confusion    n_W=   242  dV= -17.2%  typeI=0.024  power=0.787  | n_S=   329 power_S=0.798
+ior                       confusion    n_W=   673  dV=  -1.6%  typeI=0.049  power=0.798  | n_S=   725 power_S=0.801
+micro_precision           multiclass   n_W=   262  dV=  -2.6%  typeI=0.044  power=0.805
+micro_recall              multiclass   n_W=   262  dV=  +0.4%  typeI=0.048  power=0.806
+micro_f1                  multiclass   n_W=   262  dV=  -0.6%  typeI=0.046  power=0.804
+macro_precision           multiclass   n_W=   266  dV=  +3.6%  typeI=0.054  power=0.781
+macro_recall              multiclass   n_W=   265  dV=  +0.9%  typeI=0.056  power=0.788
+macro_f1                  multiclass   n_W=   267  dV=  -1.0%  typeI=0.049  power=0.777
+fppi                      rate         n_W=  1570  dV=  +0.5%  typeI=0.050  power=0.814
+fppi_overdispersed        rate         n_W=  1963  dV=  +2.3%  typeI=0.053  power=0.808
+brier                     per-case     n_W=   905  dV=  +0.4%  typeI=0.052  power=0.816
+root_brier                per-case     n_W=   227  dV=  +1.3%  typeI=0.054  power=0.804
+nll                       per-case     n_W=   504  dV=  -1.0%  typeI=0.051  power=0.817
+cross_entropy             per-case     n_W=   504  dV=  -1.6%  typeI=0.049  power=0.821
+perplexity                per-case     n_W=   104  dV=  -1.0%  typeI=0.058  power=0.874
+mae                       per-case     n_W=   453  dV=  +1.2%  typeI=0.050  power=0.807
+mse                       per-case     n_W=  1571  dV=  +0.9%  typeI=0.055  power=0.817
+rmse                      per-case     n_W=   381  dV=  -0.3%  typeI=0.054  power=0.819
+mrr                       per-case     n_W=   199  dV=  +0.1%  typeI=0.050  power=0.793
+mape                      per-case     n_W=   464  dV=  -2.0%  typeI=0.051  power=0.818
+smape                     per-case     n_W=   259  dV=  +0.1%  typeI=0.050  power=0.809
+mase                      per-case     n_W=   402  dV=  +0.6%  typeI=0.053  power=0.816
+rouge_n                   per-case     n_W=    65  dV=  -1.0%  typeI=0.054  power=0.802
+rouge_1                   per-case     n_W=    40  dV=  +2.4%  typeI=0.062  power=0.784
+rouge_2                   per-case     n_W=   157  dV=  -0.8%  typeI=0.051  power=0.805
+rouge_3                   per-case     n_W=   286  dV=  +1.1%  typeI=0.052  power=0.815
+rouge_l                   per-case     n_W=    53  dV=  +2.7%  typeI=0.060  power=0.792
+rouge_w                   per-case     n_W=    88  dV=  +0.8%  typeI=0.053  power=0.789
+rouge_s                   per-case     n_W=   143  dV=  -0.2%  typeI=0.054  power=0.808
+rouge_su                  per-case     n_W=    99  dV=  +1.2%  typeI=0.055  power=0.804
+bertscore                 per-case     n_W=     6  dV=  -2.5%  typeI=0.122  power=0.799
+meteor                    per-case     n_W=    88  dV=  +1.1%  typeI=0.054  power=0.794
+flesch                    per-case     n_W=    54  dV=  +0.7%  typeI=0.056  power=0.793
+flesch_kincaid            per-case     n_W=    41  dV=  -1.1%  typeI=0.057  power=0.803
+gunning_fog               per-case     n_W=    42  dV=  -1.3%  typeI=0.055  power=0.804
+smog                      per-case     n_W=    22  dV=  +3.0%  typeI=0.068  power=0.812
+ari                       per-case     n_W=    59  dV=  -0.6%  typeI=0.055  power=0.799
+forcast                   per-case     n_W=    18  dV=  +1.5%  typeI=0.069  power=0.797
+levenshtein               per-case     n_W=    66  dV=  -0.8%  typeI=0.054  power=0.814
+damerau                   per-case     n_W=    70  dV=  -2.1%  typeI=0.051  power=0.805
+hamming                   per-case     n_W=    87  dV=  -0.7%  typeI=0.052  power=0.802
+jaro                      per-case     n_W=    25  dV=  -4.6%  typeI=0.062  power=0.785
+lcs                       per-case     n_W=    40  dV=  +0.4%  typeI=0.058  power=0.809
+snr                       per-case     n_W=    26  dV=  -2.3%  typeI=0.058  power=0.812
+psnr                      per-case     n_W=    21  dV=  -2.7%  typeI=0.064  power=0.799
+cnr                       per-case     n_W=    89  dV=  -0.6%  typeI=0.055  power=0.806
+ssim                      per-case     n_W=    15  dV=  +0.1%  typeI=0.076  power=0.764
+ensemble_mse              per-case     n_W=   263  dV=  -3.7%  typeI=0.047  power=0.825
+macro_mean_prob           per-case     n_W=    71  dV=  +0.0%  typeI=0.051  power=0.799
+dice_percase              per-case     n_W=    15  dV=  +0.4%  typeI=0.080  power=0.757
+iou_percase               per-case     n_W=    31  dV=  -1.0%  typeI=0.059  power=0.785
+nsd_percase               per-case     n_W=    19  dV=  -2.5%  typeI=0.070  power=0.779
+assd_percase              per-case     n_W=   406  dV=  +0.7%  typeI=0.054  power=0.815
+hd95_percase              per-case     n_W=   563  dV=  +1.0%  typeI=0.052  power=0.817
+kendall_tau               U-statistic  n_W=  2454  dV=  +1.1%  typeI=0.053  power=0.796
+rand_index                U-statistic  n_W=   193  dV=  +0.1%  typeI=0.057  power=0.812
+fowlkes_mallows           U-statistic  n_W=   573  dV=  +1.5%  typeI=0.053  power=0.800
+entropy                   other        n_W=   217  dV=  +2.2%  typeI=0.054  power=0.732
+conditional_entropy       other        n_W=   911  dV=  -0.8%  typeI=0.053  power=0.757
+weighted_kappa            other        n_W=   705  dV=  -0.0%  typeI=0.052  power=0.782
+r_squared                 other        n_W=  1667  dV=  -1.8%  typeI=0.050  power=0.801
+coefficient_of_variation  other        n_W=   442  dV=  +0.8%  typeI=0.052  power=0.818
+repeatability_coefficient other        n_W=   393  dV=  +1.5%  typeI=0.052  power=0.808
+discrimination_slope      other        n_W=   818  dV=  +1.4%  typeI=0.053  power=0.797
+risk_difference           other        n_W= 34012  dV=  +0.8%  typeI=0.050  power=0.792
+paired_proportion         other        n_W= 26446  dV=  -2.6%  typeI=0.047  power=0.807
+======================================================================================================================
+OPERATING CHARACTERISTICS   85 metrics   REPS = 10,000   delta = 10% of the metric value   alpha = 0.05   target power = 0.8
+Monte Carlo error (2 SE): variance ratio +/- 2.8%   type I error +/- 0.004   power +/- 0.008
+======================================================================================================================
+metric                    family         theta        V     dV%    n_W  typeI  power    n_S  pow_S   skew  note
+----------------------------------------------------------------------------------------------------------------------
+accuracy                  confusion      0.750   0.1875   -1.1%    262  0.046  0.806    293  0.797      -  
+sensitivity               confusion      0.700   0.4200   +2.4%    673  0.057  0.788    725  0.807      -  
+specificity               confusion      0.800   0.3200   +1.4%    393  0.056  0.776    463  0.794      -  
+ppv                       confusion      0.778   0.3841   -1.6%    499  0.053  0.792    714  0.800      -  
+npv                       confusion      0.727   0.3606   +3.7%    536  0.056  0.784    545  0.794      -  
+balanced_accuracy         confusion      0.750   0.1850   +0.7%    259  0.054  0.790    277  0.807      -  
+youden                    confusion      0.500   0.7400   +0.1%   2324  0.048  0.793   2400  0.799      -  
+dsc_f1                    confusion      0.737   0.2578   -0.3%    373  0.054  0.778    447  0.794      -  
+fbeta                     confusion      0.714   0.3315   +1.2%    510  0.053  0.785    474  0.762      -  
+iou                       confusion      0.583   0.4051   -0.2%    935  0.052  0.798    952  0.799      -  
+mcc                       confusion      0.503   0.7398   +0.8%   2300  0.050  0.797   2389  0.798      -  
+expected_cost             confusion      0.850   3.1275   -0.5%   3398  0.049  0.804      -      -      -  score: ValueError
+net_benefit               confusion      0.325   0.2506   -2.2%   1863  0.046  0.799   1798  0.805      -  
+markedness                confusion      0.505   0.7447   +0.4%   2292  0.050  0.791   2406  0.805      -  
+balanced_error_rate       confusion      0.250   0.1850   -2.5%   2324  0.048  0.814      -      -      -  score: ValueError
+false_discovery_rate      confusion      0.222   0.3841   -0.4%   6105  0.048  0.805      -      -      -  score: ValueError
+false_omission_rate       confusion      0.273   0.3606   +0.1%   3806  0.050  0.810      -      -      -  score: ValueError
+class_error               confusion      0.300   0.4200   +1.0%   3663  0.051  0.807      -      -      -  score: ValueError
+false_referral_rate       confusion      0.222   0.3841   +0.8%   6105  0.051  0.802      -      -      -  score: ValueError
+volumetric_similarity     confusion      0.947   0.2762  -17.2%    242  0.024  0.787    329  0.798      -  
+ior                       confusion      0.700   0.4200   -1.6%    673  0.049  0.798    725  0.801      -  
+micro_precision           multiclass     0.750   0.1875   -2.6%    262  0.044  0.805      -      -      -  
+micro_recall              multiclass     0.750   0.1875   +0.4%    262  0.048  0.806      -      -      -  
+micro_f1                  multiclass     0.750   0.1875   -0.6%    262  0.046  0.804      -      -      -  
+macro_precision           multiclass     0.748   0.1895   +3.6%    266  0.054  0.781      -      -      -  
+macro_recall              multiclass     0.747   0.1877   +0.9%    265  0.056  0.788      -      -      -  
+macro_f1                  multiclass     0.747   0.1890   -1.0%    267  0.049  0.777      -      -      -  
+fppi                      rate           0.500   0.5000   +0.5%   1570  0.050  0.814      -      -      -  
+fppi_overdispersed        rate           0.500   0.6250   +2.3%   1963  0.053  0.808      -      -      -  
+brier                     per-case       0.144   0.0240   +0.4%    905  0.052  0.816      -      -   1.62  
+root_brier                per-case       0.380   0.0416   +1.3%    227  0.054  0.804      -      -   1.62  
+nll                       per-case       0.453   0.1316   -1.0%    504  0.051  0.817      -      -   1.70  
+cross_entropy             per-case       0.453   0.1316   -1.6%    504  0.049  0.821      -      -   1.70  
+perplexity                per-case       1.573   0.3254   -1.0%    104  0.058  0.874      -      -   1.70  
+mae                       per-case       1.582   1.4409   +1.2%    453  0.050  0.807      -      -   1.03  
+mse                       per-case       3.888  30.2539   +0.9%   1571  0.055  0.817      -      -   2.79  
+rmse                      per-case       2.006   1.9480   -0.3%    381  0.054  0.819      -      -   2.69  
+mrr                       per-case       0.654   0.1082   +0.1%    199  0.050  0.793      -      -  -0.06  
+mape                      per-case       0.356   0.0746   -2.0%    464  0.051  0.818      -      -   1.05  
+smape                     per-case       0.248   0.0202   +0.1%    259  0.050  0.809      -      -   0.71  
+mase                      per-case       1.005   0.5160   +0.6%    402  0.053  0.816      -      -   1.45  
+rouge_n                   per-case       0.554   0.0253   -1.0%     65  0.054  0.802      -      -  -0.10  
+rouge_1                   per-case       0.666   0.0223   +2.4%     40  0.062  0.784      -      -  -0.41  
+rouge_2                   per-case       0.334   0.0223   -0.8%    157  0.051  0.805      -      -   0.41  
+rouge_3                   per-case       0.200   0.0145   +1.1%    286  0.052  0.815      -      -   0.85  
+rouge_l                   per-case       0.625   0.0261   +2.7%     53  0.060  0.792      -      -  -0.32  
+rouge_w                   per-case       0.502   0.0281   +0.8%     88  0.053  0.789      -      -   0.01  
+rouge_s                   per-case       0.378   0.0258   -0.2%    143  0.054  0.808      -      -   0.27  
+rouge_su                  per-case       0.446   0.0249   +1.2%     99  0.055  0.804      -      -   0.12  
+bertscore                 per-case       0.868   0.0049   -2.5%      6  0.122  0.799      -      -  -0.90  
+meteor                    per-case       0.499   0.0277   +1.1%     88  0.054  0.794      -      -  -0.01  
+flesch                    per-case      45.104 139.9053   +0.7%     54  0.056  0.793      -      -  -0.02  
+flesch_kincaid            per-case      10.967   6.2224   -1.1%     41  0.057  0.803      -      -   0.02  
+gunning_fog               per-case      12.983   8.9608   -1.3%     42  0.055  0.804      -      -   0.00  
+smog                      per-case      11.992   3.8892   +3.0%     22  0.068  0.812      -      -   0.02  
+ari                       per-case      10.994   9.0808   -0.6%     59  0.055  0.799      -      -   0.03  
+forcast                   per-case      10.017   2.2662   +1.5%     18  0.069  0.797      -      -  -0.02  
+levenshtein               per-case      11.972  11.9285   -0.8%     66  0.054  0.814      -      -   0.34  
+damerau                   per-case      11.050  10.8543   -2.1%     70  0.051  0.805      -      -   0.29  
+hamming                   per-case       9.050   8.9778   -0.7%     87  0.052  0.802      -      -   0.32  
+jaro                      per-case       0.727   0.0167   -4.6%     25  0.062  0.785      -      -  -0.57  
+lcs                       per-case      20.011  20.1058   +0.4%     40  0.058  0.809      -      -   0.24  
+snr                       per-case      21.981  15.8572   -2.3%     26  0.058  0.812      -      -   0.04  
+psnr                      per-case      30.872  25.3659   -2.7%     21  0.064  0.799      -      -   0.01  
+cnr                       per-case       5.978   4.0209   -0.6%     89  0.055  0.806      -      -   0.01  
+ssim                      per-case       0.817   0.0126   +0.1%     15  0.076  0.764      -      -  -0.88  
+ensemble_mse              per-case       0.502   0.0842   -3.7%    263  0.047  0.825      -      -   1.10  
+macro_mean_prob           per-case       0.500   0.0225   +0.0%     71  0.051  0.799      -      -   0.01  
+dice_percase              per-case       0.818   0.0127   +0.4%     15  0.080  0.757      -      -  -0.91  
+iou_percase               per-case       0.701   0.0191   -1.0%     31  0.059  0.785      -      -  -0.50  
+nsd_percase               per-case       0.799   0.0148   -2.5%     19  0.070  0.779      -      -  -0.83  
+assd_percase              per-case       1.657   1.4173   +0.7%    406  0.054  0.815      -      -   1.51  
+hd95_percase              per-case       5.699  23.2653   +1.0%    563  0.052  0.817      -      -   1.66  
+kendall_tau               U-statistic    0.333   0.3474   +1.1%   2454  0.053  0.796      -      -      -  
+rand_index                U-statistic    0.763   0.1431   +0.1%    193  0.057  0.812      -      -      -  
+fowlkes_mallows           U-statistic    0.652   0.3096   +1.5%    573  0.053  0.800      -      -      -  
+entropy                   other          1.142   0.3592   +2.2%    217  0.054  0.732      -      -      -  
+conditional_entropy       other          0.716   0.5945   -0.8%    911  0.053  0.757      -      -      -  
+weighted_kappa            other          0.665   0.3964   -0.0%    705  0.052  0.782      -      -      -  
+r_squared                 other          0.490   0.5098   -1.8%   1667  0.050  0.801      -      -      -  
+coefficient_of_variation  other          0.250   0.0352   +0.8%    442  0.052  0.818      -      -      -  
+repeatability_coefficient other          1.386   0.9604   +1.5%    393  0.052  0.808      -      -      -  
+discrimination_slope      other          0.400   0.1667   +1.4%    818  0.053  0.797      -      -      -  
+risk_difference           other          0.150   0.9750   +0.8%  34012  0.050  0.792      -      -      -  
+paired_proportion         other          0.070   0.1651   -2.6%  26446  0.047  0.807      -      -      -  
+======================================================================================================================
+SUMMARY
+  simulated vs analytic variance: -17.2% to +3.7%; 79 of 85 within the MC noise band
+  type I error (nominal 0.05): 0.024 to 0.122; 11 outside 0.05 +/- 0.01: volumetric_similarity (0.024), rouge_1 (0.062), rouge_l (0.060), bertscore (0.122), smog (0.068), forcast (0.069), jaro (0.062), psnr (0.064), ssim (0.076), dice_percase (0.080), nsd_percase (0.070)
+  power at n_Wald (target 0.8): 0.732 to 0.874; 11 outside +/- 0.02: specificity (0.776), dsc_f1 (0.778), macro_f1 (0.777), cross_entropy (0.821), perplexity (0.874), ssim (0.764), ensemble_mse (0.825), dice_percase (0.757), nsd_percase (0.779), entropy (0.732), conditional_entropy (0.757)
+  score test (confusion-matrix metrics, n = 15): power 0.762 to 0.807
+
+Results sentence (fill into the manuscript):
+  For all 85 implemented variances the Monte Carlo variance was within 17% of the analytic value (range -17.2% to +3.7%). At nominal alpha = .05 the empirical type I error of the Wald test ranged from 0.024 to 0.122, and empirical power at the calculated sample size ranged from 0.73 to 0.87 against a target of 0.80; the 11 metrics outside +/- 0.02 of the target were specificity, dsc_f1, macro_f1, cross_entropy, perplexity, ssim, ensemble_mse, dice_percase, nsd_percase, entropy, conditional_entropy.
+(1107 s)

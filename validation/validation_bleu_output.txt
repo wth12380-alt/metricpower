@@ -1,0 +1,35 @@
+========================================================================================================================
+CORPUS BLEU: delta-method variance vs Monte Carlo and bootstrap   (B = 4,000)
+========================================================================================================================
+
+[1] Monte Carlo: V_delta (population) vs N * Var(BLEU) over fresh corpora; Wald coverage of the per-sample delta CI
+
+BP off (candidate 3% longer)       N=  100  BLEU=0.3136  BP=off  V_delta=0.00895  V_MC=0.00886  diff=-1.0% (noise ±6.3%)  coverage=0.948
+BP off (candidate 3% longer)       N=  300  BLEU=0.3137  BP=off  V_delta=0.00891  V_MC=0.00895  diff=+0.5% (noise ±6.3%)  coverage=0.950
+BP off (candidate 3% longer)       N= 1000  BLEU=0.3138  BP=off  V_delta=0.00889  V_MC=0.00881  diff=-0.9% (noise ±6.3%)  coverage=0.955
+BP on  (candidate 5% shorter)      N=  300  BLEU=0.2959  BP=on   V_delta=0.01090  V_MC=0.01055  diff=-3.2% (noise ±6.3%)  coverage=0.953
+BP on  (candidate 5% shorter)      N= 1000  BLEU=0.2962  BP=on   V_delta=0.01088  V_MC=0.01088  diff=+0.0% (noise ±6.3%)  coverage=0.949
+low quality corpus (BLEU ~0.1)     N=  300  BLEU=0.1713  BP=off  V_delta=0.00611  V_MC=0.00609  diff=-0.3% (noise ±6.3%)  coverage=0.954
+AT THE KINK (lengths equal)        N=  300  BLEU=0.3131  BP=on   V_delta=0.01159  V_MC=0.01025  diff=-11.6% (noise ±6.3%)  coverage=0.945
+AT THE KINK (lengths equal)        N= 1000  BLEU=0.3131  BP=on   V_delta=0.01155  V_MC=0.00983  diff=-14.9% (noise ±6.3%)  coverage=0.955
+
+[2] One corpus of 300 segments: delta SE vs bootstrap SE (1000 resamples), five independent corpora
+
+   corpus 1: BLEU=0.3136   SE_delta=0.00547   SE_boot=0.00551   ratio=0.993   CI_delta=[0.3028, 0.3243]   CI_boot=[0.3033, 0.3247]
+   corpus 2: BLEU=0.3188   SE_delta=0.00554   SE_boot=0.00542   ratio=1.022   CI_delta=[0.3079, 0.3296]   CI_boot=[0.3087, 0.3294]
+   corpus 3: BLEU=0.3010   SE_delta=0.00553   SE_boot=0.00543   ratio=1.018   CI_delta=[0.2901, 0.3118]   CI_boot=[0.2905, 0.3116]
+   corpus 4: BLEU=0.3096   SE_delta=0.00543   SE_boot=0.00554   ratio=0.979   CI_delta=[0.2990, 0.3203]   CI_boot=[0.2986, 0.3201]
+   corpus 5: BLEU=0.3155   SE_delta=0.00557   SE_boot=0.00562   ratio=0.990   CI_delta=[0.3046, 0.3264]   CI_boot=[0.3044, 0.3262]
+
+[3] The naive route Koehn warned against: SD of sentence-level BLEU / sqrt(N) vs the delta SE
+
+   mean of sentence BLEU = 0.2833 (corpus BLEU = 0.3193);  naive SE = 0.00679;  delta SE = 0.00565;  bootstrap SE = 0.00563
+   (the naive SE targets a different estimand - the mean of sentence scores - which is why it was never usable)
+
+========================================================================================================================
+BLEU DELTA METHOD VALIDATED   (27 s)
+
+Reading: V_delta is the per-segment variance from the gradient and the per-segment covariance; N * Var(BLEU) is the
+truth from fresh corpora. Agreement within the noise band, and coverage near 0.95, means the delta method gives corpus
+BLEU a valid analytic variance - except at the brevity-penalty kink (candidate length = reference length), where the
+limit law is a mixture and the variance is only approximate; the package warns there.
