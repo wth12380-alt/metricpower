@@ -99,3 +99,33 @@ def test_manifest_counts():
     man = mp.group_b_manifest()
     assert len(man) == sum(len(v) for v in mp.GROUP_B_FAMILY.values())
     assert len(mp.PERCASE_REGISTRY) == 44
+
+
+# ---------------------------------------------------------------- Miller–Madow and the small-n caveat (2026-11-11)
+
+def test_miller_madow_helpers():
+    import numpy as np
+    import metricpower as mp
+    c = np.array([50, 30, 15, 5])
+    assert abs(mp.entropy_miller_madow(c) - (mp.metric_entropy(c / 100) + 3 / 200)) < 1e-12
+    P = np.array([[30, 4, 2], [5, 22, 5], [3, 6, 23]])
+    assert abs(mp.conditional_entropy_miller_madow(P) - (mp.metric_conditional_entropy(P.ravel() / 100, 3) + 6 / 200)) < 1e-12
+    r = mp.conditional_entropy_variance(P / 100)
+    assert r["bias_plugin"] == -3.0
+
+
+def test_entropy_result_carries_miller_madow_note():
+    import metricpower as mp
+    r = mp.n_for_power_group_b("entropy", p=[.5, .3, .15, .05], delta=0.1142)
+    assert abs(r.extra["miller_madow_correction"] - 1.5 / r.n) < 1e-12
+    assert any("Miller" in nt for nt in r.notes)
+    r = mp.n_for_power_group_b("conditional_entropy", P=[[.3, .04, .02], [.05, .22, .05], [.03, .06, .23]], delta=0.07)
+    assert abs(r.extra["miller_madow_correction"] - 3.0 / r.n) < 1e-12
+
+
+def test_small_n_note_attached_below_30_only():
+    import metricpower as mp
+    small = mp.n_for_power_group_b("bertscore", mean=0.87, sd=0.07, delta=0.087)
+    assert small.n < mp.SMALL_N and any("below 30" in nt for nt in small.notes)
+    big = mp.n_for_power_group_b("brier", mean=0.145, sd=0.154, delta=0.0145)
+    assert big.n >= mp.SMALL_N and not any("below 30" in nt for nt in big.notes)

@@ -231,7 +231,8 @@ n_for_power_percase <- function(x, delta, transform = "identity", alpha = 0.05,
              "Run sensitivity_by_n_percase() before committing to n = %d."),
       r$skew, n), call. = FALSE)
   }
-  c(r, list(n = n, n_z = n_z, test = "t", delta = delta))
+  small_n_warn(n)
+  c(r, list(n = n, n_z = n_z, test = "t", delta = delta, small_n = isTRUE(n < SMALL_N)))
 }
 
 # -----------------------------------------------------------------------------
@@ -247,6 +248,29 @@ n_for_power_percase <- function(x, delta, transform = "identity", alpha = 0.05,
 #' corrects the point estimate but not the variance.
 metric_entropy <- function(p) -sum(p[p > 0] * log(p[p > 0]))
 grad_entropy   <- function(p) ifelse(p > 0, -(log(pmax(p, 1e-300)) + 1), 0)
+
+#' Miller-Madow correction (k - 1) / (2n) for a k-cell plug-in entropy
+#'
+#' H is concave, so by Jensen E[H(p_hat)] < H(p): sampling noise makes p_hat look
+#' less uniform than p and the plug-in estimate is biased downward by about
+#' (k - 1) / (2n). The bias is a second-order term in the mean and leaves the
+#' delta-method variance unchanged, but it shifts the estimate toward the null and
+#' costs power unless the analysis adds it back (entropy 0.74 -> 0.80 at the
+#' calculated n in the operating-characteristics simulation, with the score n).
+miller_madow_correction <- function(k, n) (k - 1) / (2 * n)
+
+#' Miller-Madow corrected entropy from cell counts
+entropy_miller_madow <- function(counts) {
+  n <- sum(counts); k <- sum(counts > 0)
+  metric_entropy(counts / n) + miller_madow_correction(k, n)
+}
+
+#' Miller-Madow corrected H(Y|X) from a k x k count table: adds k_x (k_y - 1) / (2n)
+conditional_entropy_miller_madow <- function(counts) {
+  C <- as.matrix(counts); n <- sum(C)
+  kxy <- sum(C > 0); kx <- sum(rowSums(C) > 0)
+  metric_conditional_entropy(as.vector(C / n), nrow(C)) + (kxy - kx) / (2 * n)
+}
 
 #' Entropy variance, with a degeneracy guard
 #'

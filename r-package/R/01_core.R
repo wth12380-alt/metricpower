@@ -405,6 +405,30 @@ n_for_power <- function(V_alt, delta, V_null = V_alt, alpha = 0.05,
   ceiling(n * deff)
 }
 
+#' Warn when a calculated sample size is below the small-n threshold
+#'
+#' Every closed-form n rests on a large-sample (normal or t) approximation.
+#' Below about 30 units it has not converged for bounded or skewed metrics: in the
+#' operating-characteristics simulation the t-test reached type I errors of
+#' 0.06-0.15 and powers of 0.76-0.78 for per-case metrics sized at n = 5-25
+#' (BERTScore, SSIM, per-case Dice and NSD, Jaro) although Var = sigma^2/n was
+#' exact. The variance is not at fault; the sample size is a floor, not a guarantee.
+#' @return invisibly, TRUE when n < SMALL_N
+SMALL_N <- 30
+small_n_warn <- function(n, metric = NULL) {
+  small <- isTRUE(n < SMALL_N)
+  if (small) {
+    warning(sprintf(paste0(
+      "%sn = %d is below %d: the sample-size formula rests on a large-sample (normal ",
+      "or t) approximation that has not converged at this size for bounded or skewed ",
+      "metrics, so the achieved type I error can exceed the nominal level and the ",
+      "achieved power can fall short of the target (operating-characteristics ",
+      "simulation, Table S4). The variance itself is unaffected; interpret n as a lower bound."),
+      if (is.null(metric)) "" else paste0(metric, ": "), n, SMALL_N), call. = FALSE)
+  }
+  invisible(small)
+}
+
 #' Sample size for a one-sample t-test on a per-case mean (noncentral t, as power.t.test)
 #'
 #' The z formula treats sigma as known; with the sample SD as the SE the z critical
@@ -642,8 +666,12 @@ n_for_power_metric <- function(p, name, delta, alpha = 0.05, power = 0.80,
                     kd, n_folded, n_wald))
   }
 
-  list(n = if (!is.na(n_folded)) n_folded else if (test == "wald") n_wald else n_score,
+  n_out <- if (!is.na(n_folded)) n_folded else if (test == "wald") n_wald else n_score
+  small_n_warn(n_out, name)
+
+  list(n = n_out,
        n_folded = n_folded,
+       small_n = isTRUE(n_out < SMALL_N),
        test = test,
        estimate = theta1, null_value = theta1 - delta,
        V_alt = V1, V_null = V0, p_null = p0, null_path = used_path,

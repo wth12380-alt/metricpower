@@ -36,7 +36,7 @@ pip install -e ".[app]"                 # 裝 metricpower + Shiny（約 1 分鐘
 ### 1.3 確認裝好了
 
 ```bash
-python -c "import metricpower; print(metricpower.__version__)"   # 0.1.1
+python -c "import metricpower; print(metricpower.__version__)"   # 0.1.3
 python -m pytest -q                                              # 選擇性：74 passed
 ```
 
@@ -113,7 +113,7 @@ shiny run app.py
 | `Address already in use` | 8000 被上一次沒關的 app 占住：換 `--port 8001`，或 `lsof -i :8000` 找到 PID 後 `kill` |
 | `ERROR: Package requires a different Python` | Python 太舊，用 `python3.11 -m venv .venv` 重建 |
 | 公式顯示成原始 LaTeX（`\frac{...}`） | 重新整理頁面；MathJax 是內建的（`app/www/mathjax`），不需要網路 |
-| 下拉選單被下面的框蓋住 | 舊版問題，已改為原生 select；若仍出現，確認 `metricpower.__version__` 是 0.1.1 |
+| 下拉選單被下面的框蓋住 | 舊版問題，已改為原生 select；若仍出現，確認 `metricpower.__version__` 是 0.1.3 |
 
 ---
 

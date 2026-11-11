@@ -53,7 +53,7 @@ rouge_l                   per-case          t   0.625   0.0261   +2.3%     55  0
 rouge_w                   per-case          t   0.502   0.0281   +1.7%     90  0.052  0.801      -      -   0.01  
 rouge_s                   per-case          t   0.378   0.0258   +3.6%    145  0.056  0.804      -      -   0.27  
 rouge_su                  per-case          t   0.446   0.0249   +0.3%    101  0.052  0.807      -      -   0.12  
-bertscore                 per-case          t   0.868   0.0049   -1.0%      8  0.062  0.799      -      -  -0.90  
+bertscore                 per-case          t   0.868   0.0049   -1.2%      8  0.068  0.803      -      -  -0.90  n < 30: large-sample approximation not converged
 meteor                    per-case          t   0.499   0.0277   -0.5%     90  0.051  0.801      -      -  -0.01  
 flesch                    per-case          t  45.104 139.9053   +1.2%     56  0.053  0.799      -      -  -0.02  
 flesch_kincaid            per-case          t  10.967   6.2224   +0.6%     43  0.047  0.805      -      -   0.02  
@@ -64,24 +64,24 @@ forcast                   per-case          t  10.017   2.2662   +2.2%     20  0
 levenshtein               per-case          t  11.972  11.9285   +0.8%     68  0.051  0.812      -      -   0.34  
 damerau                   per-case          t  11.050  10.8543   -1.0%     72  0.047  0.819      -      -   0.29  
 hamming                   per-case          t   9.050   8.9778   +0.8%     88  0.053  0.811      -      -   0.32  
-jaro                      per-case          t   0.727   0.0167   -1.5%     27  0.050  0.788      -      -  -0.57  
+jaro                      per-case          t   0.727   0.0167   +2.3%     27  0.055  0.779      -      -  -0.57  n < 30: large-sample approximation not converged
 lcs                       per-case          t  20.011  20.1058   -0.4%     42  0.049  0.814      -      -   0.24  
 snr                       per-case          t  21.981  15.8572   +1.0%     28  0.052  0.807      -      -   0.04  
 psnr                      per-case          t  30.872  25.3659   +1.0%     23  0.051  0.806      -      -   0.01  
 cnr                       per-case          t   5.978   4.0209   +1.6%     91  0.051  0.809      -      -   0.01  
-ssim                      per-case          t   0.817   0.0126   +1.6%     17  0.060  0.766      -      -  -0.88  
+ssim                      per-case          t   0.817   0.0126   +1.6%     17  0.064  0.765      -      -  -0.88  n < 30: large-sample approximation not converged
 ensemble_mse              per-case          t   0.502   0.0842   -1.7%    265  0.053  0.821      -      -   1.10  
 macro_mean_prob           per-case          t   0.500   0.0225   -2.1%     73  0.049  0.800      -      -   0.01  
-dice_percase              per-case          t   0.818   0.0127   +0.8%     17  0.060  0.756      -      -  -0.91  
+dice_percase              per-case          t   0.818   0.0127   +0.2%     17  0.061  0.766      -      -  -0.91  n < 30: large-sample approximation not converged
 iou_percase               per-case          t   0.701   0.0191   -0.5%     33  0.049  0.779      -      -  -0.50  
-nsd_percase               per-case          t   0.799   0.0148   -1.5%     21  0.055  0.793      -      -  -0.83  
+nsd_percase               per-case          t   0.799   0.0148   -0.5%     21  0.057  0.780      -      -  -0.83  n < 30: large-sample approximation not converged
 assd_percase              per-case          t   1.657   1.4173   +0.3%    408  0.048  0.814      -      -   1.51  
 hd95_percase              per-case          t   5.699  23.2653   -1.0%    565  0.050  0.820      -      -   1.66  
 kendall_tau               U-statistic       z   0.333   0.3474   +2.2%   2454  0.053  0.798      -      -      -  
 rand_index                U-statistic       z   0.763   0.1431   +1.9%    193  0.057  0.804      -      -      -  
 fowlkes_mallows           U-statistic       z   0.652   0.3096   +0.1%    573  0.052  0.802      -      -      -  
-entropy                   other             z   1.142   0.3592   -0.2%    217  0.051  0.732      -      -      -  
-conditional_entropy       other             z   0.716   0.5945   +2.6%    911  0.055  0.753      -      -      -  
+entropy                   other          z+MM   1.142   0.3592   +0.9%    217  0.053  0.775      -      -      -  
+conditional_entropy       other          z+MM   0.716   0.5945   +1.1%    911  0.051  0.793      -      -      -  
 weighted_kappa            other             z   0.665   0.3964   +0.7%    705  0.050  0.783      -      -      -  
 r_squared                 other             z   0.490   0.5098   +0.7%   1667  0.051  0.789      -      -      -  
 coefficient_of_variation  other             z   0.250   0.0352   +1.8%    442  0.054  0.814      -      -      -  
@@ -93,10 +93,12 @@ paired_proportion         other             z   0.070   0.1651   -0.4%  26446  0
 SUMMARY
   simulated vs analytic (delta-method) variance, 84 metrics: -3.0% to +3.7%; 79 of 84 within the MC noise band
   volumetric_similarity: -19.3% vs the delta-method V (expected: the distribution is folded at the kink), -3.8% vs the folded-normal V; sized and tested with the folded-normal test
-  type I error (nominal 0.05): 0.043 to 0.062; 2 outside 0.05 +/- 0.01: bertscore (0.062), ssim (0.060)
-  power at n_Wald (target 0.8): 0.732 to 0.870; 13 outside +/- 0.02: specificity (0.776), dsc_f1 (0.778), macro_f1 (0.777), nll (0.821), perplexity (0.870), rouge_3 (0.821), ssim (0.766), ensemble_mse (0.821), dice_percase (0.756), iou_percase (0.779), hd95_percase (0.820), entropy (0.732), conditional_entropy (0.753)
+  type I error (nominal 0.05): 0.043 to 0.068; 3 outside 0.05 +/- 0.01: bertscore (0.068), ssim (0.064), dice_percase (0.061)
+  power at n_Wald (target 0.8): 0.765 to 0.870; 14 outside +/- 0.02: specificity (0.776), dsc_f1 (0.778), macro_f1 (0.777), nll (0.821), perplexity (0.870), rouge_3 (0.821), jaro (0.779), ssim (0.765), ensemble_mse (0.821), dice_percase (0.766), iou_percase (0.779), nsd_percase (0.780), hd95_percase (0.820), entropy (0.775)
+  n below 30 (9; the large-sample approximation has not converged, type I error and power are reported as found and flagged in the package): bertscore (n = 8, type I 0.068, power 0.803), smog (n = 24, type I 0.046, power 0.819), forcast (n = 20, type I 0.050, power 0.802), jaro (n = 27, type I 0.055, power 0.779), snr (n = 28, type I 0.052, power 0.807), psnr (n = 23, type I 0.051, power 0.806), ssim (n = 17, type I 0.064, power 0.765), dice_percase (n = 17, type I 0.061, power 0.766), nsd_percase (n = 21, type I 0.057, power 0.780)
+  Miller-Madow corrected estimate used in the test (plug-in entropies are biased toward the null by (k-1)/(2n)): entropy (power 0.775), conditional_entropy (power 0.793)
   score test (confusion-matrix metrics, n = 14): power 0.762 to 0.807
 
 Results sentence (fill into the manuscript):
-  For all 85 implemented variances the Monte Carlo variance was within 19% of the analytic value (range -19.3% to +3.7%). At nominal alpha = .05 the empirical type I error of the Wald test ranged from 0.043 to 0.062, and empirical power at the calculated sample size ranged from 0.73 to 0.87 against a target of 0.80; the 13 metrics outside +/- 0.02 of the target were specificity, dsc_f1, macro_f1, nll, perplexity, rouge_3, ssim, ensemble_mse, dice_percase, iou_percase, hd95_percase, entropy, conditional_entropy.
-(70 s)
+  For all 85 implemented variances the Monte Carlo variance was within 19% of the analytic value (range -19.3% to +3.7%). At nominal alpha = .05 the empirical type I error of the Wald test ranged from 0.043 to 0.068, and empirical power at the calculated sample size ranged from 0.77 to 0.87 against a target of 0.80; the 14 metrics outside +/- 0.02 of the target were specificity, dsc_f1, macro_f1, nll, perplexity, rouge_3, jaro, ssim, ensemble_mse, dice_percase, iou_percase, nsd_percase, hd95_percase, entropy.
+(2 s)

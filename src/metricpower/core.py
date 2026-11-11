@@ -416,6 +416,24 @@ def n_for_power(V_alt: float, delta: float, V_null: Optional[float] = None,
     return int(math.ceil(n * deff - 1e-12))
 
 
+SMALL_N = 30
+
+
+def small_n_note(n: int) -> str:
+    """Caveat attached to any calculated n below SMALL_N.
+
+    Below ~30 units the large-sample (normal or t) approximation behind every closed-form n has not
+    converged for bounded or skewed metrics: in the operating-characteristics simulation the type I
+    error of the t-test reached 0.06-0.15 and the power fell to 0.76-0.78 for per-case metrics with
+    n = 5-25 (BERTScore, SSIM, per-case Dice and NSD, Jaro) although Var = sigma^2 / n was exact.
+    The variance is not at fault; the sample size is a floor rather than a guarantee."""
+    return (f"n = {n} is below {SMALL_N}: the sample-size formula rests on a large-sample (normal or t) "
+            "approximation that has not converged at this size for bounded or skewed metrics, so the "
+            "achieved type I error can exceed the nominal level and the achieved power can fall short "
+            "of the target (operating-characteristics simulation, Table S4). The variance itself is "
+            "unaffected; interpret n as a lower bound")
+
+
 def n_for_power_t(V_alt: float, delta: float, alpha: float = 0.05, power: float = 0.80,
                   two_sided: bool = True, deff: float = 1.0, n_max: int = 10_000_000) -> int:
     """Sample size for a one-sample t-test on a per-case mean (noncentral-t power, as power.t.test).
@@ -650,6 +668,8 @@ def n_for_power_metric(p: Vector, name: str, delta: float, alpha: float = 0.05,
     if V1 < 1e-6:
         notes.append("V is essentially zero: the null sits at a stationary point of the metric, "
                      "the limit is chi-square rather than normal, and this n is not valid")
+    if n < SMALL_N:
+        notes.append(small_n_note(n))
     if name == "volumetric_similarity":
         # |fp - fn| has a kink at fp = fn.  Near it the sampling distribution of VS is folded normal, not
         # normal: the Wald test with the delta-method SE is conservative and the one with the folded-normal

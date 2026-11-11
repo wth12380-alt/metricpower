@@ -6,9 +6,9 @@ and ~70 more. Three ways to use it:
 
 | | | |
 |---|---|---|
-| **Shiny app** (v0.1.1) | point-and-click: pick the metric, enter H0 / H1 / α / power, read n — and see the formula with your numbers and the reference | [`app.py`](app.py) — run locally in one command (below) |
-| **Python package** `metricpower` 0.1.1 | the same calculations as functions; ships the app | this repository root |
-| **R package** `metricpower` 0.1.2 | the original implementation; identical numbers | [`r-package/`](r-package/) |
+| **Shiny app** (v0.1.3) | point-and-click: pick the metric, enter H0 / H1 / α / power, read n — and see the formula with your numbers and the reference | [`app.py`](app.py) — run locally in one command (below) |
+| **Python package** `metricpower` 0.1.3 | the same calculations as functions; ships the app | this repository root |
+| **R package** `metricpower` 0.1.3 | the original implementation; identical numbers | [`r-package/`](r-package/) |
 
 ## The Shiny app
 
@@ -181,6 +181,18 @@ implemented variance and checks the empirical type I error and power at the n th
   therefore sizes VS with the folded-normal test itself (`n_for_power_vs_folded`, `vs_folded_power`),
   which holds the level (type I 0.043, power 0.79 at the calculated n); `kink_distance()` reports how
   close an operating point is.
+- **Plug-in entropies are biased toward the null.** H is concave, so the plug-in estimate is low by about
+  (k − 1)/(2n) (Jensen); the delta-method variance is unaffected but the bias eats 5–6% of Δ and the power
+  at the calculated n fell to 0.74 (entropy) and 0.76 (conditional entropy). The result now carries the
+  Miller–Madow correction at n (`Result.extra["miller_madow_correction"]`) and a note to analyse with the
+  corrected estimate (`entropy_miller_madow`, `conditional_entropy_miller_madow`); the simulation does the
+  same (`test = "z+MM"`). The correction recovers about two-thirds of the shortfall (entropy 0.73 → 0.78);
+  the rest is the V₀ > V₁ effect above and is recovered by the score n (0.80).
+- **n below 30 is flagged, not fixed.** For BERTScore, SSIM, per-case Dice and NSD and Jaro the calculated
+  n was 5–25; Var = σ²/n was exact there, but neither the t nor the normal approximation had converged for a
+  bounded, left-skewed metric (type I 0.06–0.15, power 0.76–0.78). Every result with n < 30 now carries a
+  note (`small_n_note`; `small_n_warn()` in R) that the n is a floor, not a guarantee. No resampling or
+  post hoc procedure is recommended: the package is for a priori planning.
 
 ## What to know before trusting a number
 

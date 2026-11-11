@@ -201,6 +201,30 @@ def entropy_variance(p, degenerate_tol: float = 1e-3) -> dict:
                 bias_plugin=-(k - 1) / 2, degenerate=degenerate)
 
 
+def miller_madow_correction(k: int, n: float) -> float:
+    """Additive Miller–Madow correction (k - 1) / (2n) for a k-cell plug-in entropy.
+
+    The plug-in estimator H(p_hat) is biased downward by approximately (k - 1) / (2n) because
+    H is concave (Jensen) — sampling noise makes p_hat look less uniform than p.  The bias is a
+    second-order term in the mean and leaves the first-order (delta-method) variance unchanged,
+    but it shifts the estimate toward the null and costs power unless the analysis adds it back
+    (entropy: 0.743 -> 0.803 at the calculated n in the operating-characteristics simulation)."""
+    return (k - 1) / (2.0 * n)
+
+
+def entropy_miller_madow(counts) -> float:
+    """Miller–Madow corrected entropy from cell counts: H(p_hat) + (k - 1) / (2n), k = occupied cells."""
+    c = np.asarray(counts, dtype=float); n = c.sum(); k = int((c > 0).sum())
+    return metric_entropy(c / n) + miller_madow_correction(k, n)
+
+
+def conditional_entropy_miller_madow(counts) -> float:
+    """Miller–Madow corrected H(Y|X) from a k x k table: H(X,Y)_MM - H(X)_MM = H(Y|X) + k_x (k_y - 1) / (2n)."""
+    C = np.asarray(counts, dtype=float); n = C.sum()
+    kxy = int((C > 0).sum()); kx = int((C.sum(1) > 0).sum())
+    return metric_conditional_entropy(C.ravel() / n, C.shape[0]) + (kxy - kx) / (2.0 * n)
+
+
 def metric_conditional_entropy(p, k: Optional[int] = None) -> float:
     p = np.asarray(p, dtype=float)
     if k is None:
@@ -225,7 +249,9 @@ def grad_conditional_entropy(p, k: Optional[int] = None):
 def conditional_entropy_variance(P) -> dict:
     P = np.asarray(P, dtype=float); P = P / P.sum(); k = P.shape[0]
     g = lambda q: metric_conditional_entropy(q, k); gr = lambda q: grad_conditional_entropy(q, k)
-    return dict(estimate=g(P.ravel()), V=delta_var(P.ravel(), g, grad=gr))
+    kxy = int((P > 0).sum()); kx = int((P.sum(1) > 0).sum())
+    return dict(estimate=g(P.ravel()), V=delta_var(P.ravel(), g, grad=gr),
+                bias_plugin=-(kxy - kx) / 2)        # divide by n for the bias itself
 
 
 def cv_variance(x=None, cv: Optional[float] = None) -> dict:

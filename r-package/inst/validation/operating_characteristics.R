@@ -13,7 +13,7 @@
 #               (data drawn at theta_1; = 1 - coverage of the CI). Per-case means
 #               use the one-sample t-test (n from power.t.test, critical value
 #               qt(1 - alpha/2, n - 1)); everything else the z-based Wald test
-#               (needs metricpower >= 0.1.2 for n_for_power_t)
+#               (needs metricpower >= 0.1.3: n_for_power_t, SMALL_N)
 #    power      rejection rate of H0: theta = theta_0 = theta_1 - delta at
 #               n_W = n_for_power(V_1, delta); target 0.80
 #    power_S    confusion-matrix metrics only: score statistic standardised by
@@ -24,16 +24,20 @@
 #  Usage (package loaded with library(metricpower) or devtools::load_all()):
 #    source("operating_characteristics.R")          # 10,000 reps, ~15-30 min
 #    REPS <- 1000; source("operating_characteristics.R")   # quick look
+#    ONLY <- c("entropy", "conditional_entropy"); source("operating_characteristics.R")
+#                                                   # rerun two rows and merge them into the CSV
 #  Writes operating_characteristics.csv and prints the Results sentence.
 # =============================================================================
 
-SCRIPT_VERSION <- "2026-10-28c"
+SCRIPT_VERSION <- "2026-11-11a"   # Miller-Madow for the entropies; n < 30 flag
 if (!exists("REPS"))       REPS       <- 10000
 if (!exists("DELTA_FRAC")) DELTA_FRAC <- 0.10
 if (!exists("DELTA_ABS"))  DELTA_ABS  <- NA        # e.g. 0.05 for an absolute delta
 if (!exists("ALPHA"))      ALPHA      <- 0.05
 if (!exists("POWER"))      POWER      <- 0.80
 if (!exists("MAX_N"))      MAX_N      <- 60000     # skip a metric whose n is larger
+if (!exists("ONLY"))       ONLY       <- NULL      # e.g. c("entropy", "conditional_entropy"): run these and
+                                                   # merge their rows into an existing operating_characteristics.csv
 set.seed(2026)
 
 N_POOL <- 10000
@@ -212,10 +216,18 @@ CATALOGUE[["paired_proportion"]] <- list(family = "other",
 # The simulation
 # -----------------------------------------------------------------------------
 
+# Miller-Madow constants c (correction c / n): entropy (k - 1) / 2; conditional entropy (k_xy - k_x) / 2.
+# Plug-in entropies are biased toward the null (H is concave), which costs power; the package tells the
+# user to analyse with the corrected estimate, so the test here does the same. V is unchanged.
+MM_CONST <- c(entropy = (sum(CATALOGUE[["entropy"]]$sim$p > 0) - 1) / 2,
+              conditional_entropy = (sum(P3 > 0) - sum(rowSums(P3) > 0)) / 2)
+SMALL_N_OC <- if (exists("SMALL_N")) SMALL_N else 30
+
 rows <- list(); t0 <- Sys.time()
 for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "other")) {
   for (nm in names(CATALOGUE)) {
     e <- CATALOGUE[[nm]]; if (e$family != fam) next
+    if (!is.null(ONLY) && !(nm %in% ONLY)) next
     s <- if (!is.null(e$sim)) e$sim else e$make()
     th1 <- s$truth; V1 <- s$V
     delta <- if (!is.na(DELTA_ABS)) DELTA_ABS else DELTA_FRAC * abs(th1)
@@ -238,7 +250,10 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
     if (folded)     # VS: also vs the folded-normal V, which is the relevant one near the kink
       row$dV_folded_pct <- 100 * (n_w * stats::var(est) / vs_variance_folded(s$p, n_w)$V - 1)
     row$n_wald      <- n_w
-    row$test        <- if (folded) "folded" else if (t_based) "t" else "z"
+    mm <- if (nm %in% names(MM_CONST)) MM_CONST[[nm]] / n_w else 0
+    row$test        <- if (folded) "folded" else if (t_based) "t" else if (mm > 0) "z+MM" else "z"
+    row$small_n     <- as.integer(n_w < SMALL_N_OC)
+    if (n_w < SMALL_N_OC) row$note <- sprintf("n < %d: large-sample approximation not converged", SMALL_N_OC)
     if (folded) {
       # equal-tailed folded-normal test with plug-in s and D from each sample
       a <- c(0, 1, -1, 0); b <- c(2, 1, 1, 0)
@@ -255,8 +270,8 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
       }
       row$type1_wald <- rej[["t1"]] / REPS; row$power_wald <- rej[["pw"]] / REPS
     } else {
-      row$type1_wald  <- mean(abs(est - th1) > crit * se)    # H0 at the truth
-      row$power_wald  <- mean(abs(est - th0) > crit * se)    # H0 at theta_0, n = n_W
+      row$type1_wald  <- mean(abs(est + mm - th1) > crit * se)    # H0 at the truth (est + mm: Miller-Madow where it applies)
+      row$power_wald  <- mean(abs(est + mm - th0) > crit * se)    # H0 at theta_0, n = n_W
     }
     row$undefined_pct <- 100 * mean(!ok)
     # score test for confusion-matrix metrics: null variance from the null operating point
@@ -285,10 +300,19 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
 # -----------------------------------------------------------------------------
 
 cols <- c("metric", "family", "test", "theta", "V", "dV_pct", "dV_folded_pct", "n_wald", "type1_wald", "power_wald",
-          "V_null", "n_score", "power_score", "undefined_pct", "skew", "note")
+          "V_null", "n_score", "power_score", "undefined_pct", "skew", "small_n", "note")
 tab <- do.call(rbind, lapply(rows, function(r) {
   as.data.frame(lapply(setNames(cols, cols), function(k) if (is.null(r[[k]])) NA else r[[k]]),
                 stringsAsFactors = FALSE) }))
+if (!is.null(ONLY) && file.exists("operating_characteristics.csv")) {
+  # merge the rerun rows into the existing table (same seed, so the untouched rows are unchanged)
+  old <- utils::read.csv("operating_characteristics.csv", stringsAsFactors = FALSE)
+  for (k in setdiff(cols, names(old))) old[[k]] <- NA
+  old <- old[, cols]; old$note[is.na(old$note)] <- ""
+  hit <- tab$metric %in% old$metric
+  old[match(tab$metric[hit], old$metric), ] <- tab[hit, ]
+  tab <- rbind(old, tab[!hit, ])
+}
 utils::write.csv(tab, "operating_characteristics.csv", row.names = FALSE)
 
 done <- tab[!is.na(tab$power_wald), ]
@@ -316,6 +340,13 @@ cat(sprintf("  type I error (nominal %s): %.3f to %.3f; %d outside %s +/- 0.01: 
             nrow(off_t1), ALPHA, paste(sprintf("%s (%.3f)", off_t1$metric, off_t1$type1_wald), collapse = ", ")))
 cat(sprintf("  power at n_Wald (target %s): %.3f to %.3f; %d outside +/- 0.02: %s\n", POWER, min(pw), max(pw),
             nrow(off_pow), paste(sprintf("%s (%.3f)", off_pow$metric, off_pow$power_wald), collapse = ", ")))
+small <- done[done$n_wald < SMALL_N_OC, ]
+if (nrow(small)) cat(sprintf(paste0("  n below %d (%d; the large-sample approximation has not converged, type I error and power are ",
+                                    "reported as found and flagged in the package): %s\n"), SMALL_N_OC, nrow(small),
+                             paste(sprintf("%s (n = %d, type I %.3f, power %.3f)", small$metric, small$n_wald, small$type1_wald, small$power_wald), collapse = ", ")))
+mmr <- done[!is.na(done$test) & done$test == "z+MM", ]
+if (nrow(mmr)) cat(sprintf("  Miller-Madow corrected estimate used in the test (plug-in entropies are biased toward the null by (k-1)/(2n)): %s\n",
+                           paste(sprintf("%s (power %.3f)", mmr$metric, mmr$power_wald), collapse = ", ")))
 sc <- done[!is.na(done$power_score), ]
 if (nrow(sc)) cat(sprintf("  score test (confusion-matrix metrics, n = %d): power %.3f to %.3f\n",
                           nrow(sc), min(sc$power_score), max(sc$power_score)))

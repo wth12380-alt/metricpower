@@ -14,7 +14,7 @@ Quick start
 810
 >>> mp.n_for_power_group_a("auroc", auc1=0.80, auc0=0.70).n
 """
-from .core import (n_for_power_t, power_for_n_t, kink_distance, vs_variance_folded, vs_folded_power, vs_folded_quantile, n_for_power_vs_folded, Result, cell_prob, cell_prob_from_operating_point, delta_var, numeric_gradient,
+from .core import (SMALL_N, small_n_note, n_for_power_t, power_for_n_t, kink_distance, vs_variance_folded, vs_folded_power, vs_folded_quantile, n_for_power_vs_folded, Result, cell_prob, cell_prob_from_operating_point, delta_var, numeric_gradient,
                    METRIC_REGISTRY, CM_METRICS, get_metric, get_gradient, metric_variance,
                    paired_marginal, delta_var_paired, design_effect, n_for_power, power_for_n,
                    n_for_precision, metric_ci, cell_prob_at_metric, n_for_power_metric,
@@ -25,7 +25,7 @@ from .core import (n_for_power_t, power_for_n_t, kink_distance, vs_variance_fold
                    n_for_power_calibration_error)
 from .families import (metric_micro, metric_macro, metric_variance_multiclass, var_rate, n_for_power_rate,
                        PERCASE_REGISTRY, var_percase_transformed, n_for_power_percase,
-                       metric_entropy, grad_entropy, entropy_variance, metric_conditional_entropy,
+                       metric_entropy, grad_entropy, entropy_variance, miller_madow_correction, entropy_miller_madow, conditional_entropy_miller_madow, metric_conditional_entropy,
                        conditional_entropy_variance, cv_variance, ustat_variance, kendall_tau_variance,
                        cluster_index_variance, r_squared_variance, repeatability_variance,
                        discrimination_slope_variance, risk_difference_variance, paired_proportion_variance,
@@ -37,4 +37,4 @@ from .references import REFERENCES
 from .groupc import GROUP_C, explain_group_c
 # experimental, not wired into the dispatcher or the app: from metricpower import bleu
 
-__version__ = "0.1.1"
+__version__ = "0.1.3"

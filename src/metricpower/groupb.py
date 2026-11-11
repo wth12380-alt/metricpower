@@ -20,7 +20,7 @@ import numpy as np
 from scipy.stats import norm
 
 from . import families as F
-from .core import (n_for_power_t, CM_METRICS, Result, _z, kappa_w, kappa_w_var_fce, n_for_power,
+from .core import (SMALL_N, small_n_note, n_for_power_t, CM_METRICS, Result, _z, kappa_w, kappa_w_var_fce, n_for_power,
                    n_for_power_metric, weights_identity, weights_linear, weights_quadratic)
 
 GROUP_B_FAMILY: Dict[str, List[str]] = {
@@ -88,9 +88,27 @@ def _finish(metric, fam, est, V, delta, alpha, power, two_sided, deff, formula_l
     if deff != 1:
         fl.append(r"n_{\text{clustered}} = n \times \text{deff}")
         fn.append(f"{math.ceil(raw - 1e-12)} \\times {deff:.3f} \\to {n}")
+    if n < SMALL_N:
+        notes = list(notes or []) + [small_n_note(n)]
     return Result(n=n, metric=metric, group="B", estimate=est, null_value=null_value, V_alt=V, V_null=V,
                   inputs=inputs or {}, steps=steps, formula_latex=fl, formula_numeric=fn,
                   reference=refs, notes=notes or [], extra=extra)
+
+
+def _add_miller_madow_note(res: Result, bias_plugin: float, delta: float, symbol: str, mm_latex: str) -> None:
+    """Plug-in entropy estimators are biased toward the null by bias_plugin / n (second-order term in
+    the mean; the delta-method variance is unaffected).  Record the bias at the calculated n and tell
+    the user to analyse with the Miller–Madow corrected estimate so the calculated power is achieved."""
+    if res.n is None or bias_plugin == 0:
+        return
+    bias_n = bias_plugin / res.n
+    res.extra.update(bias_plugin_at_n=bias_n, miller_madow_correction=-bias_n)
+    res.steps.append(("plug-in bias at n (Miller–Madow correction = -bias)", round(bias_n, 5)))
+    res.formula_latex.append(r"\text{analyse with } " + mm_latex + r"\quad(\text{plug-in bias} \approx " + f"{bias_n:+.4f}" + ")")
+    res.notes.append(f"analyse with the Miller–Madow corrected estimate ({symbol}_hat {(-bias_n):+.4f} at n = {res.n}): "
+                     f"the plug-in estimate is biased toward the null by about {bias_n:+.4f} "
+                     f"({100 * abs(bias_n) / abs(delta):.0f}% of delta = {delta:.4f}), which lowers the achieved power "
+                     "below the target if left uncorrected (entropy 0.74 -> 0.80 with the correction, Table S4)")
 
 
 def n_for_power_group_b(metric: str, *, delta: Optional[float] = None, alpha: float = 0.05,
@@ -192,13 +210,16 @@ def n_for_power_group_b(metric: str, *, delta: Optional[float] = None, alpha: fl
                       inputs=dict(p=list(kw["p"]), delta=delta), null_value=r["estimate"] - delta)
         if r["degenerate"]:
             res.notes.append("entropy is at its maximum (uniform): V = 0, the limit is chi-square, n is invalid")
+        _add_miller_madow_note(res, r["bias_plugin"], delta, "H", r"\hat H + \frac{k-1}{2n}")
         return res
     if metric == "conditional_entropy":
         r = F.conditional_entropy_variance(kw["P"])
-        return _finish(metric, fam, r["estimate"], r["V"], delta, alpha, power, two_sided, deff,
-                       [r"H(Y|X) = -\sum_{ij} p_{ij}\log\frac{p_{ij}}{p_{i\cdot}},\quad V=\nabla g^{\prime}\Sigma\nabla g"],
-                       [f"H(Y|X) = {r['estimate']:.4f},\\quad V = {r['V']:.5f}"], ["delta_method", "basharin1959"],
-                       inputs=dict(P=np.asarray(kw["P"]).tolist(), delta=delta), null_value=r["estimate"] - delta)
+        res = _finish(metric, fam, r["estimate"], r["V"], delta, alpha, power, two_sided, deff,
+                      [r"H(Y|X) = -\sum_{ij} p_{ij}\log\frac{p_{ij}}{p_{i\cdot}},\quad V=\nabla g^{\prime}\Sigma\nabla g"],
+                      [f"H(Y|X) = {r['estimate']:.4f},\\quad V = {r['V']:.5f}"], ["delta_method", "basharin1959"],
+                      inputs=dict(P=np.asarray(kw["P"]).tolist(), delta=delta), null_value=r["estimate"] - delta)
+        _add_miller_madow_note(res, r["bias_plugin"], delta, "H(Y|X)", r"\hat H(Y|X) + \frac{k_x(k_y-1)}{2n}")
+        return res
     if metric == "coefficient_of_variation":
         r = F.cv_variance(kw.get("x"), kw.get("cv"))
         return _finish(metric, fam, r["estimate"], r["V"], delta, alpha, power, two_sided, deff,

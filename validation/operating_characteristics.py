@@ -55,6 +55,11 @@ SE_POW = math.sqrt(0.8 * 0.2 / REPS)
 SE_V = math.sqrt(2 / REPS)                        # MC standard error of a variance ratio
 here = os.path.dirname(os.path.abspath(__file__))
 
+# Miller-Madow constants c with correction c / n: entropy (k - 1) / 2; conditional entropy (k_xy - k_x) / 2
+MM_CONST = {"entropy": (int((CAT["entropy"]["sim"]["p"] > 0).sum()) - 1) / 2,
+            "conditional_entropy": (int((CAT["conditional_entropy"]["sim"]["p"] > 0).sum())
+                                    - int((CAT["conditional_entropy"]["sim"]["p"].reshape(3, 3).sum(1) > 0).sum())) / 2}
+
 rows = []
 t0 = time.time()
 for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other"):
@@ -99,10 +104,16 @@ for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other
                     rej[vs_null] += (A < lo) or (A > hi)
             t1e, pw = rej[th1] / REPS, rej[th0] / REPS
         else:
-            t1e = float(np.mean(np.abs(est - th1) > crit * se))     # H0 at the truth, data at the truth
-            pw = float(np.mean(np.abs(est - th0) > crit * se))      # H0 at theta_0, data at theta_1, n = n_Wald
-        row = dict(metric=nm, family=fam, theta=th1, V=V1, dV_pct=dV, n_wald=n_w, type1_wald=t1e, power_wald=pw, test="folded" if folded else ("t" if t_based else "z"), dV_folded_pct=dV_folded,
-                   undefined_pct=100 * (1 - ok.mean()), skew=s.get("skew", float("nan")))
+            # plug-in entropies are biased toward the null by (k - 1) / (2n) (H concave): the analysis
+            # uses the Miller-Madow corrected estimate, as the package tells the user to; V is unchanged
+            mm = MM_CONST.get(nm, 0.0) / n_w
+            t1e = float(np.mean(np.abs(est + mm - th1) > crit * se))     # H0 at the truth, data at the truth
+            pw = float(np.mean(np.abs(est + mm - th0) > crit * se))      # H0 at theta_0, data at theta_1, n = n_Wald
+        test = "folded" if folded else ("t" if t_based else ("z+MM" if nm in MM_CONST else "z"))
+        row = dict(metric=nm, family=fam, theta=th1, V=V1, dV_pct=dV, n_wald=n_w, type1_wald=t1e, power_wald=pw, test=test, dV_folded_pct=dV_folded,
+                   undefined_pct=100 * (1 - ok.mean()), skew=s.get("skew", float("nan")), small_n=int(n_w < mp.SMALL_N))
+        if n_w < mp.SMALL_N:
+            row["note"] = f"n < {mp.SMALL_N}: large-sample approximation not converged"
         # score test for confusion-matrix metrics: null variance from the null operating point (sensitivity / specificity path)
         if fam == "confusion" and "p" in s and not folded:
             try:
@@ -134,7 +145,7 @@ if args.merge_into:
             if "n_score" in rr: rr["n_score"] = int(rr["n_score"])
             merged.append(rr)
     rows = merged
-cols = ["metric", "family", "test", "theta", "V", "dV_pct", "dV_folded_pct", "n_wald", "type1_wald", "power_wald", "V_null", "n_score", "power_score", "undefined_pct", "skew", "note"]
+cols = ["metric", "family", "test", "theta", "V", "dV_pct", "dV_folded_pct", "n_wald", "type1_wald", "power_wald", "V_null", "n_score", "power_score", "undefined_pct", "skew", "small_n", "note"]
 with open(os.path.join(here, "operating_characteristics.csv"), "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=cols); w.writeheader()
     for r in rows: w.writerow({k: r.get(k, "") for k in cols})
@@ -169,6 +180,14 @@ for r in vs_rows:
                  f"{r['dV_folded_pct']:+.1f}% vs the folded-normal V; sized and tested with the folded-normal test")
 lines.append(f"  type I error (nominal {args.alpha}): {t1.min():.3f} to {t1.max():.3f}; {len(off_t1)} outside {args.alpha} +/- 0.01: " + ", ".join(f"{r['metric']} ({r['type1_wald']:.3f})" for r in off_t1))
 lines.append(f"  power at n_Wald (target {args.power}): {pw.min():.3f} to {pw.max():.3f}; {len(off_pow)} outside +/- 0.02: " + ", ".join(f"{r['metric']} ({r['power_wald']:.3f})" for r in off_pow))
+small = [r for r in done if r["n_wald"] < mp.SMALL_N]
+if small:
+    lines.append(f"  n below {mp.SMALL_N} ({len(small)}; the large-sample approximation has not converged, type I error and power "
+                 "are reported as found and flagged in the package): " + ", ".join(f"{r['metric']} (n = {r['n_wald']}, type I {r['type1_wald']:.3f}, power {r['power_wald']:.3f})" for r in small))
+mm_rows = [r for r in done if r["test"] == "z+MM"]
+if mm_rows:
+    lines.append("  Miller-Madow corrected estimate used in the test (plug-in entropies are biased toward the null by (k-1)/(2n)): "
+                 + ", ".join(f"{r['metric']} (power {r['power_wald']:.3f})" for r in mm_rows))
 sc = [r for r in done if "power_score" in r]
 if sc:
     ps = np.array([r["power_score"] for r in sc])

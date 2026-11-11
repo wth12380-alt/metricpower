@@ -175,8 +175,10 @@ conditional_entropy_variance <- function(P) {
   P <- P / sum(P); k <- nrow(P)
   g  <- function(q) metric_conditional_entropy(q, k)
   gr <- function(q) grad_conditional_entropy(q, k)
+  kxy <- sum(P > 0); kx <- sum(rowSums(P) > 0)
   list(estimate = g(as.vector(P)),
-       V = delta_var(as.vector(P), g, grad = gr))
+       V = delta_var(as.vector(P), g, grad = gr),
+       bias_plugin = -(kxy - kx) / 2)        # divide by n for the bias itself
 }
 
 # --- E2. Degree-two U-statistics: Kendall's tau, Rand, Fowlkes-Mallows -------
@@ -478,10 +480,26 @@ n_for_power_l3 <- function(metric, ..., delta = NULL, alpha = 0.05,
     paired_proportion = paired_proportion_variance(args$p01, args$p10),
     enhanced_detection_rate = paired_proportion_variance(args$p01, args$p10))
 
-  list(metric = metric, family = fam, estimate = r$estimate, V = r$V,
-       n = n_for_power(r$V, delta = delta, alpha = alpha, power = power,
-                       two_sided = two_sided, deff = deff),
-       degenerate = isTRUE(r$degenerate))
+  n <- n_for_power(r$V, delta = delta, alpha = alpha, power = power,
+                   two_sided = two_sided, deff = deff)
+  small_n_warn(n, metric)
+  out <- list(metric = metric, family = fam, estimate = r$estimate, V = r$V,
+              n = n, degenerate = isTRUE(r$degenerate), small_n = isTRUE(n < SMALL_N))
+  if (metric %in% c("entropy", "conditional_entropy") && !is.null(r$bias_plugin)) {
+    # plug-in entropies are biased toward the null by bias_plugin / n (second-order term
+    # in the mean; V is unaffected): analyse with the Miller-Madow corrected estimate
+    bias_n <- r$bias_plugin / n
+    out$bias_plugin_at_n <- bias_n
+    out$miller_madow_correction <- -bias_n
+    message(sprintf(paste0(
+      "%s: analyse with the Miller-Madow corrected estimate (plug-in + %.4f at n = %d, i.e. ",
+      "%s). The plug-in estimate is biased toward the null by about %.4f (%.0f%% of delta = %.4f), ",
+      "which lowers the achieved power below the target if left uncorrected (Table S4)."),
+      metric, -bias_n, n,
+      if (metric == "entropy") "(k - 1) / (2n)" else "k_x (k_y - 1) / (2n)",
+      bias_n, 100 * abs(bias_n) / abs(delta), delta))
+  }
+  out
 }
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
