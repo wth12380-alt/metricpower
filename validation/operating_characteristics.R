@@ -29,13 +29,17 @@
 #  Writes operating_characteristics.csv and prints the Results sentence.
 # =============================================================================
 
-SCRIPT_VERSION <- "2026-11-13a"   # + type I error of the score test; Miller-Madow for the entropies; n < 30 flag
+SCRIPT_VERSION <- "2026-11-13b"   # + type I error of the score test; Miller-Madow for the entropies; n < 30 flag
 if (!exists("REPS"))       REPS       <- 10000
 if (!exists("DELTA_FRAC")) DELTA_FRAC <- 0.10
 if (!exists("DELTA_ABS"))  DELTA_ABS  <- NA        # e.g. 0.05 for an absolute delta
 if (!exists("ALPHA"))      ALPHA      <- 0.05
 if (!exists("POWER"))      POWER      <- 0.80
 if (!exists("MAX_N"))      MAX_N      <- 60000     # skip a metric whose n is larger
+if (!exists("EXCLUDE"))    EXCLUDE    <- c("entropy", "conditional_entropy", "perplexity")
+                                                   # deferred to Part II (entropy and conditional entropy need a
+                                                   # bias correction and a null path; perplexity is an exponential
+                                                   # transform of a mean); EXCLUDE <- character(0) runs everything
 if (!exists("ONLY"))       ONLY       <- NULL      # e.g. c("entropy", "conditional_entropy"): run these and
                                                    # merge their rows into an existing operating_characteristics.csv
 set.seed(2026)
@@ -228,6 +232,7 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
   for (nm in names(CATALOGUE)) {
     e <- CATALOGUE[[nm]]; if (e$family != fam) next
     if (!is.null(ONLY) && !(nm %in% ONLY)) next
+    if (nm %in% EXCLUDE) next
     s <- if (!is.null(e$sim)) e$sim else e$make()
     th1 <- s$truth; V1 <- s$V
     delta <- if (!is.na(DELTA_ABS)) DELTA_ABS else DELTA_FRAC * abs(th1)

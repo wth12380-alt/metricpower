@@ -42,6 +42,10 @@ ap.add_argument("--power", type=float, default=0.80)
 ap.add_argument("--seed", type=int, default=2026)
 ap.add_argument("--only", type=str, default=None, help="comma-separated metric names to run (default: all)")
 ap.add_argument("--merge-into", type=str, default=None, help="with --only: update these metrics' rows inside an existing CSV and rewrite the report from it")
+ap.add_argument("--exclude", type=str, default="entropy,conditional_entropy,perplexity",
+                help="comma-separated metric names left out of Part I (default: the three deferred to Part II: "
+                     "entropy and conditional entropy need a bias correction and a null path, perplexity is an "
+                     "exponential transform of a mean); pass '' to run everything")
 ap.add_argument("--max-n", type=int, default=60000, help="skip a metric whose n exceeds this (rare; relative delta on a tiny mean)")
 args = ap.parse_args()
 warnings.simplefilter("ignore")
@@ -60,11 +64,13 @@ MM_CONST = {"entropy": (int((CAT["entropy"]["sim"]["p"] > 0).sum()) - 1) / 2,
             "conditional_entropy": (int((CAT["conditional_entropy"]["sim"]["p"] > 0).sum())
                                     - int((CAT["conditional_entropy"]["sim"]["p"].reshape(3, 3).sum(1) > 0).sum())) / 2}
 
+EXCLUDE = set(x for x in args.exclude.split(",") if x)
+
 rows = []
 t0 = time.time()
 for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other"):
     for nm, e in CAT.items():
-        if e["family"] != fam or (args.only and nm not in args.only.split(",")):
+        if e["family"] != fam or (args.only and nm not in args.only.split(",")) or nm in EXCLUDE:
             continue
         s = e["sim"] if "sim" in e else e["make"]()
         th1, V1 = float(s["truth"]), float(s["V"])
