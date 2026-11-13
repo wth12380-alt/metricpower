@@ -16,15 +16,15 @@ fbeta                     confusion         z   0.714   0.3315   +1.2%    510  0
 iou                       confusion         z   0.583   0.4051   -0.2%    935  0.052  0.798    952  0.799      -  
 mcc                       confusion         z   0.503   0.7398   +0.8%   2300  0.050  0.797   2389  0.798      -  
 expected_cost             confusion         z   0.850   3.1275   -0.5%   3398  0.049  0.804      -      -      -  score: ValueError
-net_benefit               confusion         z   0.325   0.2506   -2.2%   1863  0.046  0.799   1798  0.805      -  
-markedness                confusion         z   0.505   0.7447   +0.4%   2292  0.050  0.791   2406  0.805      -  
+net_benefit               confusion         z   0.325   0.2506   -1.9%   1863  0.048  0.801   1798  0.800      -  
+markedness                confusion         z   0.505   0.7447   -2.2%   2292  0.048  0.796   2406  0.796      -  
 balanced_error_rate       confusion         z   0.250   0.1850   -2.5%   2324  0.048  0.814      -      -      -  score: ValueError
 false_discovery_rate      confusion         z   0.222   0.3841   -0.4%   6105  0.048  0.805      -      -      -  score: ValueError
 false_omission_rate       confusion         z   0.273   0.3606   +0.1%   3806  0.050  0.810      -      -      -  score: ValueError
 class_error               confusion         z   0.300   0.4200   +1.0%   3663  0.051  0.807      -      -      -  score: ValueError
 false_referral_rate       confusion         z   0.222   0.3841   +0.8%   6105  0.051  0.802      -      -      -  score: ValueError
 volumetric_similarity     confusion    folded   0.947   0.2762  -19.3%    240  0.043  0.794      -      -      -    [dV is vs the delta-method V; vs the folded-normal V: -3.8%]
-ior                       confusion         z   0.700   0.4200   -1.6%    673  0.049  0.798    725  0.801      -  
+ior                       confusion         z   0.700   0.4200   -0.1%    673  0.050  0.783    725  0.799      -  
 micro_precision           multiclass        z   0.750   0.1875   -2.6%    262  0.044  0.805      -      -      -  
 micro_recall              multiclass        z   0.750   0.1875   +0.4%    262  0.048  0.806      -      -      -  
 micro_f1                  multiclass        z   0.750   0.1875   -0.6%    262  0.046  0.804      -      -      -  
@@ -97,8 +97,8 @@ SUMMARY
   power at n_Wald (target 0.8): 0.765 to 0.870; 14 outside +/- 0.02: specificity (0.776), dsc_f1 (0.778), macro_f1 (0.777), nll (0.821), perplexity (0.870), rouge_3 (0.821), jaro (0.779), ssim (0.765), ensemble_mse (0.821), dice_percase (0.766), iou_percase (0.779), nsd_percase (0.780), hd95_percase (0.820), entropy (0.775)
   n below 30 (9; the large-sample approximation has not converged, type I error and power are reported as found and flagged in the package): bertscore (n = 8, type I 0.068, power 0.803), smog (n = 24, type I 0.046, power 0.819), forcast (n = 20, type I 0.050, power 0.802), jaro (n = 27, type I 0.055, power 0.779), snr (n = 28, type I 0.052, power 0.807), psnr (n = 23, type I 0.051, power 0.806), ssim (n = 17, type I 0.064, power 0.765), dice_percase (n = 17, type I 0.061, power 0.766), nsd_percase (n = 21, type I 0.057, power 0.780)
   Miller-Madow corrected estimate used in the test (plug-in entropies are biased toward the null by (k-1)/(2n)): entropy (power 0.775), conditional_entropy (power 0.793)
-  score test (confusion-matrix metrics, n = 14): power 0.762 to 0.807
+  score test (confusion-matrix metrics, n = 14): type I error 0.047 to 0.055, power 0.762 to 0.807
 
 Results sentence (fill into the manuscript):
   For all 85 implemented variances the Monte Carlo variance was within 19% of the analytic value (range -19.3% to +3.7%). At nominal alpha = .05 the empirical type I error of the Wald test ranged from 0.043 to 0.068, and empirical power at the calculated sample size ranged from 0.77 to 0.87 against a target of 0.80; the 14 metrics outside +/- 0.02 of the target were specificity, dsc_f1, macro_f1, nll, perplexity, rouge_3, jaro, ssim, ensemble_mse, dice_percase, iou_percase, nsd_percase, hd95_percase, entropy.
-(2 s)
+(3 s)

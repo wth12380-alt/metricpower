@@ -121,12 +121,14 @@ for fam in ("confusion", "multiclass", "rate", "per-case", "U-statistic", "other
                 V0, n_s = float(r.V_null), int(r.n)
                 est_s, _ = s["est_se"](n_s, REPS); est_s = est_s[np.isfinite(est_s)]
                 se0 = math.sqrt(V0 / n_s)
-                row.update(V_null=V0, n_score=n_s, power_score=float(np.mean(np.abs(est_s - th0) > z_a * se0)))
+                row.update(V_null=V0, n_score=n_s, power_score=float(np.mean(np.abs(est_s - th0) > z_a * se0)),
+                           # type I error of the score test: H0 at the truth, null variance = V at the truth
+                           type1_score=float(np.mean(np.abs(est_s - th1) > z_a * math.sqrt(V1 / n_s))))
             except Exception as ex:                                 # null value unreachable on both paths
                 row.update(note=f"score: {type(ex).__name__}")
         rows.append(row)
         print(f"{nm:<26}{fam:<12} n_W={n_w:>6}  dV={dV:+6.1f}%" + (f" (vs delta V; vs folded V {dV_folded:+.1f}%)" if folded else "") + f"  typeI={t1e:.3f}  power={pw:.3f}"
-              + (f"  | n_S={row['n_score']:>6} power_S={row['power_score']:.3f}" if "power_score" in row else ""), flush=True)
+              + (f"  | n_S={row['n_score']:>6} typeI_S={row['type1_score']:.3f} power_S={row['power_score']:.3f}" if "power_score" in row else ""), flush=True)
 
 # ------------------------------------------------------------------ merge (optional) and write
 if args.merge_into:
@@ -145,7 +147,7 @@ if args.merge_into:
             if "n_score" in rr: rr["n_score"] = int(rr["n_score"])
             merged.append(rr)
     rows = merged
-cols = ["metric", "family", "test", "theta", "V", "dV_pct", "dV_folded_pct", "n_wald", "type1_wald", "power_wald", "V_null", "n_score", "power_score", "undefined_pct", "skew", "small_n", "note"]
+cols = ["metric", "family", "test", "theta", "V", "dV_pct", "dV_folded_pct", "n_wald", "type1_wald", "power_wald", "V_null", "n_score", "type1_score", "power_score", "undefined_pct", "skew", "small_n", "note"]
 with open(os.path.join(here, "operating_characteristics.csv"), "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=cols); w.writeheader()
     for r in rows: w.writerow({k: r.get(k, "") for k in cols})
@@ -191,7 +193,8 @@ if mm_rows:
 sc = [r for r in done if "power_score" in r]
 if sc:
     ps = np.array([r["power_score"] for r in sc])
-    lines.append(f"  score test (confusion-matrix metrics, n = {len(sc)}): power {ps.min():.3f} to {ps.max():.3f}")
+    ts = np.array([r.get("type1_score", float("nan")) for r in sc])
+    lines.append(f"  score test (confusion-matrix metrics, n = {len(sc)}): type I error {np.nanmin(ts):.3f} to {np.nanmax(ts):.3f}, power {ps.min():.3f} to {ps.max():.3f}")
 lines.append("")
 lines.append("Results sentence (fill into the manuscript):")
 lines.append(f"  For all {len(done)} implemented variances the Monte Carlo variance was within {max(abs(dv.min()), abs(dv.max())):.0f}% of the analytic value "

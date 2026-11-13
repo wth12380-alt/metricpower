@@ -29,7 +29,7 @@
 #  Writes operating_characteristics.csv and prints the Results sentence.
 # =============================================================================
 
-SCRIPT_VERSION <- "2026-11-11a"   # Miller-Madow for the entropies; n < 30 flag
+SCRIPT_VERSION <- "2026-11-13a"   # + type I error of the score test; Miller-Madow for the entropies; n < 30 flag
 if (!exists("REPS"))       REPS       <- 10000
 if (!exists("DELTA_FRAC")) DELTA_FRAC <- 0.10
 if (!exists("DELTA_ABS"))  DELTA_ABS  <- NA        # e.g. 0.05 for an absolute delta
@@ -283,6 +283,8 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
         es_s <- s$est_se(r$n_score, REPS); est_s <- es_s[is.finite(es_s[, 1]), 1]
         row$V_null <- r$V_null; row$n_score <- r$n_score
         row$power_score <- mean(abs(est_s - th0) > Z_A * sqrt(r$V_null / r$n_score))
+        # type I error of the score test: H0 at the truth, so the null variance is V at the truth (V1)
+        row$type1_score <- mean(abs(est_s - th1) > Z_A * sqrt(V1 / r$n_score))
       } else row$note <- "score: null value unreachable"
     }
     rows[[nm]] <- row
@@ -290,7 +292,7 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
                 row$dV_pct,
                 if (folded) sprintf(" (vs delta V; vs folded V %+.1f%%)", row$dV_folded_pct) else "",
                 row$type1_wald, row$power_wald,
-                if (!is.null(row$power_score)) sprintf("  | n_S=%6d power_S=%.3f", row$n_score, row$power_score) else ""))
+                if (!is.null(row$power_score)) sprintf("  | n_S=%6d typeI_S=%.3f power_S=%.3f", row$n_score, row$type1_score, row$power_score) else ""))
     flush.console()
   }
 }
@@ -300,7 +302,7 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
 # -----------------------------------------------------------------------------
 
 cols <- c("metric", "family", "test", "theta", "V", "dV_pct", "dV_folded_pct", "n_wald", "type1_wald", "power_wald",
-          "V_null", "n_score", "power_score", "undefined_pct", "skew", "small_n", "note")
+          "V_null", "n_score", "type1_score", "power_score", "undefined_pct", "skew", "small_n", "note")
 tab <- do.call(rbind, lapply(rows, function(r) {
   as.data.frame(lapply(setNames(cols, cols), function(k) if (is.null(r[[k]])) NA else r[[k]]),
                 stringsAsFactors = FALSE) }))
@@ -327,7 +329,7 @@ cat(sprintf("OPERATING CHARACTERISTICS   %d metrics   REPS = %s   script %s   de
 cat(sprintf("Monte Carlo error (2 SE): variance ratio +/- %.1f%%   type I error +/- %.3f   power +/- %.3f\n",
             200 * SE_V, 2 * SE_RATE, 2 * SE_POW))
 cat(strrep("=", 118), "\n", sep = "")
-print(tab[, c("metric", "family", "test", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald", "n_score", "power_score", "skew")],
+print(tab[, c("metric", "family", "test", "theta", "V", "dV_pct", "n_wald", "type1_wald", "power_wald", "n_score", "type1_score", "power_score", "skew")],
       digits = 3, row.names = FALSE)
 cat(strrep("=", 118), "\nSUMMARY\n", sep = "")
 nf <- is.na(done$dV_folded_pct)
@@ -348,8 +350,8 @@ mmr <- done[!is.na(done$test) & done$test == "z+MM", ]
 if (nrow(mmr)) cat(sprintf("  Miller-Madow corrected estimate used in the test (plug-in entropies are biased toward the null by (k-1)/(2n)): %s\n",
                            paste(sprintf("%s (power %.3f)", mmr$metric, mmr$power_wald), collapse = ", ")))
 sc <- done[!is.na(done$power_score), ]
-if (nrow(sc)) cat(sprintf("  score test (confusion-matrix metrics, n = %d): power %.3f to %.3f\n",
-                          nrow(sc), min(sc$power_score), max(sc$power_score)))
+if (nrow(sc)) cat(sprintf("  score test (confusion-matrix metrics, n = %d): type I error %.3f to %.3f, power %.3f to %.3f\n",
+                          nrow(sc), min(sc$type1_score, na.rm = TRUE), max(sc$type1_score, na.rm = TRUE), min(sc$power_score), max(sc$power_score)))
 cat("\nResults sentence (fill into the manuscript):\n")
 cat(sprintf(paste0("  For all %d implemented variances the Monte Carlo variance was within %.0f%% of the analytic value ",
                    "(range %+.1f%% to %+.1f%%). At nominal alpha = .05 the empirical type I error of the Wald test ranged from ",
