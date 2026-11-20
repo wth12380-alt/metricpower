@@ -125,6 +125,7 @@ for (n in NS) {
 }
 cat("\nCoverage below 0.94 (2 SE below nominal at 20,000 reps is 0.947; 0.94 leaves a margin):\n")
 low <- tab[tab$coverage < 0.94, ]
-if (nrow(low)) print(low[, c("metric", "family", "n", "coverage", "miss_below", "miss_above", "skew_mc")], row.names = FALSE, digits = 3)
-else cat("  none\n")
+if (nrow(low)) {
+  print(low[, c("metric", "family", "n", "coverage", "miss_below", "miss_above", "skew_mc")], row.names = FALSE, digits = 3)
+} else cat("  none\n")
 cat(sprintf("\n(%.0f s)\n", as.numeric(difftime(Sys.time(), t0, units = "secs"))))
