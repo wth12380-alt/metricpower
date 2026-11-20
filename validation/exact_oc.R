@@ -161,6 +161,7 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
 # -----------------------------------------------------------------------------
 # Table and summary
 # -----------------------------------------------------------------------------
+if (length(rows) == 0) stop("no metric was run - check ONLY (", paste(ONLY, collapse = ", "), ") and EXCLUDE (", paste(EXCLUDE, collapse = ", "), ") in your workspace; rm(ONLY) runs everything")
 cols <- c("metric", "family", "method", "theta", "delta", "n_asym", "crit_asym", "power_exact_asym",
           "n_exact", "ratio_n", "type1_exact", "power_exact", "undefined_pct", "note")
 tab <- do.call(rbind, lapply(rows, function(r) {

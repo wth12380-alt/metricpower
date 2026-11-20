@@ -88,6 +88,7 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
     cat(sprintf("%-26s%-12s %s\n", nm, fam, paste(out, collapse = "  "))); flush.console()
   }
 }
+if (length(rows) == 0) stop("no metric was run - check ONLY (", paste(ONLY, collapse = ", "), ") and EXCLUDE (", paste(EXCLUDE, collapse = ", "), ") in your workspace; rm(ONLY) runs everything")
 tab <- do.call(rbind, rows)
 utils::write.csv(tab, "small_sample_all.csv", row.names = FALSE)
 }
