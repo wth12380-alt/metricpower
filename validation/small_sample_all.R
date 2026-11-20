@@ -25,6 +25,7 @@
 #    REPS <- 2000; source("small_sample_all.R")         # quick look
 #    ONLY <- c("dice", "brier"); source("small_sample_all.R")
 #    NS <- c(25, 50, 100); source("small_sample_all.R")
+#    FROM_CSV <- TRUE; source("small_sample_all.R")   # re-make the tables from an existing csv
 #  Writes small_sample_all.csv (long), small_sample_ratio.csv and
 #  small_sample_coverage.csv (wide, metric x n, ready for the supplement) and
 #  prints the sign tests by family.
@@ -37,6 +38,7 @@ if (!exists("ALPHA"))   ALPHA   <- 0.05
 if (!exists("EXCLUDE")) EXCLUDE <- c("entropy", "conditional_entropy", "perplexity")   # Part II
 if (!exists("ONLY"))    ONLY    <- NULL
 if (!exists("BAND"))    BAND    <- 2 * sqrt(2 / REPS)   # MC noise band for a variance ratio (2 SE)
+if (!exists("FROM_CSV")) FROM_CSV <- FALSE   # TRUE: skip the simulation, rebuild the tables from small_sample_all.csv
 
 source(if (file.exists("oc_catalogue.R")) "oc_catalogue.R"
        else system.file("validation", "oc_catalogue.R", package = "metricpower"))
@@ -47,7 +49,11 @@ SE_COV <- sqrt((1 - ALPHA) * ALPHA / REPS)
 
 skewness <- function(x) { x <- x - mean(x); mean(x^3) / (mean(x^2))^1.5 }
 
-rows <- list(); t0 <- Sys.time()
+t0 <- Sys.time()
+if (FROM_CSV && file.exists("small_sample_all.csv")) {
+  tab <- utils::read.csv("small_sample_all.csv", stringsAsFactors = FALSE)   # tables and summary only
+} else {
+rows <- list()
 for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "other")) {
   for (nm in names(CATALOGUE)) {
     e <- CATALOGUE[[nm]]; if (e$family != fam) next
@@ -84,13 +90,16 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
 }
 tab <- do.call(rbind, rows)
 utils::write.csv(tab, "small_sample_all.csv", row.names = FALSE)
+}
 
 # ---- wide tables (metric x n) -------------------------------------------------
 wide <- function(col, digits) {
-  w <- stats::reshape(tab[, c("metric", "family", "n", col)], idvar = c("metric", "family"),
-                      timevar = "n", direction = "wide")
-  names(w) <- sub(paste0("^", col, "\\."), "n = ", names(w))
-  w[, -(1:2)] <- lapply(w[, -(1:2), drop = FALSE], round, digits)
+  mets <- unique(tab$metric)
+  w <- data.frame(metric = mets, family = tab$family[match(mets, tab$metric)], stringsAsFactors = FALSE)
+  for (n in NS) {
+    d <- tab[tab$n == n, ]
+    w[[paste("n =", format(n, big.mark = ","))]] <- round(d[[col]][match(mets, d$metric)], digits)
+  }
   w
 }
 ratio_w <- wide("ratio", 3); cov_w <- wide("coverage", 3)
