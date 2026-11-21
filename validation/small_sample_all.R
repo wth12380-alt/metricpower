@@ -16,7 +16,9 @@
 #    miss_above   share lying entirely above theta
 #    miss_ratio   max(miss_below, miss_above) / min(...)  (1 = symmetric)
 #    skew_mc      skewness of the simulated estimates
-#    undefined    % of replicates with an undefined estimate or SE (0/0 cells)
+#    undefined    % of replicates with an undefined estimate (0/0 cells); dropped
+#    se_zero      % with a plug-in SE of 0 (an empty cell); kept - the estimate
+#                 enters the variance and the zero-width interval counts as a miss
 #  Volumetric similarity is also compared with the folded-normal variance
 #  (ratio_folded), which is the relevant one near fp = fn.
 #
@@ -31,7 +33,7 @@
 #  prints the sign tests by family.
 # =============================================================================
 
-SCRIPT_VERSION <- "2026-11-20"
+SCRIPT_VERSION <- "2026-11-21"
 if (!exists("REPS"))    REPS    <- 20000
 if (!exists("NS"))      NS      <- c(25, 50, 100, 250, 500, 1000)
 if (!exists("ALPHA"))   ALPHA   <- 0.05
@@ -66,10 +68,11 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
     out <- character(0)
     for (n in NS) {
       es <- s$est_se(n, REPS)
-      ok <- is.finite(es[, 1]) & is.finite(es[, 2]) & es[, 2] > 0
-      est <- es[ok, 1]; se <- es[ok, 2]
+      fin <- is.finite(es[, 1])                       # estimate defined (0/0 cells drop out)
+      est <- es[fin, 1]; se <- es[fin, 2]
+      okci <- is.finite(se)                           # SE = 0 kept: a degenerate interval that misses
       crit <- if (t_based) stats::qt(1 - ALPHA / 2, n - 1) else Z_A
-      lo <- est - crit * se; hi <- est + crit * se
+      lo <- est[okci] - crit * se[okci]; hi <- est[okci] + crit * se[okci]
       r <- data.frame(metric = nm, family = fam, n = n,
                       theta = th, V = V,
                       ratio = n * stats::var(est) / V,
@@ -78,8 +81,9 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
                       miss_below = mean(hi < th),
                       miss_above = mean(lo > th),
                       skew_mc    = skewness(est),
-                      undefined_pct = 100 * mean(!ok),
-                      n_ok = sum(ok), stringsAsFactors = FALSE)
+                      undefined_pct = 100 * mean(!fin),
+                      se_zero_pct   = 100 * mean(se[okci] == 0),
+                      n_ok = sum(fin), stringsAsFactors = FALSE)
       r$miss_ratio <- if (min(r$miss_below, r$miss_above) > 0)
         max(r$miss_below, r$miss_above) / min(r$miss_below, r$miss_above) else NA
       rows[[length(rows) + 1]] <- r

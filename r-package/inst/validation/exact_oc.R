@@ -12,7 +12,8 @@
 #
 #  Exact test.  The statistic is the pivot T = (estimate - theta_0) / SE with the
 #  same plug-in SE the package reports.  Its critical value c*(n) is the
-#  empirical 1 - alpha/2 quantile of |T| from REPS simulated studies of size n
+#  empirical 1 - alpha quantile of |T| (two-sided; |T| folds both tails) from REPS
+#  simulated studies of size n
 #  under the null, instead of the normal or t quantile, so the type I error is
 #  alpha by construction up to Monte Carlo error.  Two ways of simulating the null:
 #    null-simulated   confusion-matrix metrics: data drawn at the null operating
@@ -33,6 +34,7 @@
 #                     INDEPENDENT null sample (check; should be alpha +/- MC)
 #    power_exact      exact power at n_exact (REPS reps)
 #    crit_asym        c*(n_asym), to compare with z = 1.96 or the t quantile
+#                     (volumetric similarity: on the scale of |est - theta_0|, not studentized)
 #
 #  Usage (package loaded):
 #    source("exact_oc.R")                             # REPS 20,000, REPS_SEARCH 4,000
@@ -42,7 +44,7 @@
 #  type1_wald / power_wald columns are merged in for side-by-side comparison.
 # =============================================================================
 
-SCRIPT_VERSION <- "2026-11-20"
+SCRIPT_VERSION <- "2026-11-21"
 if (!exists("REPS"))        REPS        <- 20000
 if (!exists("REPS_SEARCH")) REPS_SEARCH <- 4000
 if (!exists("DELTA_FRAC"))  DELTA_FRAC  <- 0.10
@@ -61,10 +63,15 @@ SE_RATE <- sqrt(ALPHA * (1 - ALPHA) / REPS)
 SE_POW  <- sqrt(POWER * (1 - POWER) / REPS)
 
 # pivot |T| from one simulator: (est - centre) / se, undefined replicates dropped
-pivot <- function(sim, n, reps, centre) {
+# |T| from one simulator: (est - centre) / se, undefined estimates dropped; se = 0 with est != centre
+# gives |T| = Inf (the Wald test rejects).  studentize = FALSE uses |est - centre| itself (volumetric
+# similarity: the plug-in SE is 0 whenever fp = fn, so the studentized pivot is degenerate there).
+pivot <- function(sim, n, reps, centre, studentize = TRUE) {
   es <- sim$est_se(n, reps)
-  ok <- is.finite(es[, 1]) & is.finite(es[, 2]) & es[, 2] > 0
-  list(T = abs(es[ok, 1] - centre) / es[ok, 2], undefined = mean(!ok))
+  ok <- is.finite(es[, 1])
+  d <- abs(es[ok, 1] - centre)
+  if (studentize) { se <- es[ok, 2]; T <- ifelse(se > 0, d / se, ifelse(d > 0, Inf, 0)) } else T <- d
+  list(T = T[is.finite(T) | T == Inf], undefined = mean(!ok))
 }
 
 rows <- list(); t0 <- Sys.time()
@@ -103,13 +110,14 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
     }
     method <- if (!is.null(sim0)) "null-simulated" else "pivot-calibrated"
     row$method <- method
-    crit_fn <- function(n, reps) {
-      pv <- if (!is.null(sim0)) pivot(sim0, n, reps, th0) else pivot(s, n, reps, th1)
-      stats::quantile(pv$T, 1 - ALPHA / 2, names = FALSE)
+    stud <- !folded
+    crit_fn <- function(n, reps) {            # two-sided: |T| folds both tails, so its 1 - alpha quantile
+      pv <- if (!is.null(sim0)) pivot(sim0, n, reps, th0, stud) else pivot(s, n, reps, th1, stud)
+      stats::quantile(pv$T, 1 - ALPHA, names = FALSE)
     }
     power_fn <- function(n, reps) {           # data at the truth, H0: theta = theta_0, exact c*
       cstar <- crit_fn(n, reps)
-      pv <- pivot(s, n, reps, th0)
+      pv <- pivot(s, n, reps, th0, stud)
       list(power = mean(pv$T > cstar), crit = cstar, undefined = pv$undefined)
     }
 
@@ -149,7 +157,7 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
     row$n_exact <- n_exact; row$ratio_n <- n_exact / n_asym; row$power_exact <- pe$power
     # independent null sample for the type I error of the exact test at n_exact
     cstar <- crit_fn(n_exact, REPS)
-    pv0 <- if (!is.null(sim0)) pivot(sim0, n_exact, REPS, th0) else pivot(s, n_exact, REPS, th1)
+    pv0 <- if (!is.null(sim0)) pivot(sim0, n_exact, REPS, th0, stud) else pivot(s, n_exact, REPS, th1, stud)
     row$type1_exact <- mean(pv0$T > cstar)
     rows[[nm]] <- row
     cat(sprintf("%-26s%-12s%-17s n_asym=%6d  power_exact(n_asym)=%.3f  n_exact=%6d  ratio=%.3f  typeI=%.3f  c*=%.3f\n",
