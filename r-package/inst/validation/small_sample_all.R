@@ -22,6 +22,16 @@
 #  Volumetric similarity is also compared with the folded-normal variance
 #  (ratio_folded), which is the relevant one near fp = fn.
 #
+#  Defaults differ from operating_characteristics.R in three ways, all overridable:
+#    N_POOL = 100,000   per-case bootstrap population (10,000 in Table S4)
+#    USTAT_EXACT = TRUE exact population V for Kendall's tau, Rand and Fowlkes-Mallows
+#                       (Table S4 uses V estimated from a reference sample of 3,000-4,000,
+#                       whose own Monte Carlo error is about 2%)
+#    NS adds 2,000 and 5,000; the three U-statistics stop at NS_USTAT (<= 1,000) because
+#    their estimators are O(n^2) per replicate
+#  Remember rm(N_POOL, USTAT_EXACT) before running operating_characteristics.R in the
+#  same session, otherwise its Table S4 numbers change.
+#
 #  Usage (package loaded):
 #    source("small_sample_all.R")                       # 20,000 reps, all metrics
 #    REPS <- 2000; source("small_sample_all.R")         # quick look
@@ -33,9 +43,12 @@
 #  prints the sign tests by family.
 # =============================================================================
 
-SCRIPT_VERSION <- "2026-11-21"
+SCRIPT_VERSION <- "2026-11-23"
 if (!exists("REPS"))    REPS    <- 20000
-if (!exists("NS"))      NS      <- c(25, 50, 100, 250, 500, 1000)
+if (!exists("NS"))      NS      <- c(25, 50, 100, 250, 500, 1000, 2000, 5000)
+if (!exists("NS_USTAT")) NS_USTAT <- NS[NS <= 1000]   # U-statistics are O(n^2) per replicate
+if (!exists("N_POOL"))  N_POOL  <- 100000     # per-case bootstrap population (Table S4 used 10,000)
+if (!exists("USTAT_EXACT")) USTAT_EXACT <- TRUE   # exact population V for Kendall / Rand / FM
 if (!exists("ALPHA"))   ALPHA   <- 0.05
 if (!exists("EXCLUDE")) EXCLUDE <- c("entropy", "conditional_entropy", "perplexity")   # Part II
 if (!exists("ONLY"))    ONLY    <- NULL
@@ -66,7 +79,7 @@ for (fam in c("confusion", "multiclass", "rate", "per-case", "U-statistic", "oth
     t_based <- fam == "per-case"
     folded  <- nm == "volumetric_similarity"
     out <- character(0)
-    for (n in NS) {
+    for (n in (if (fam == "U-statistic") NS_USTAT else NS)) {
       es <- s$est_se(n, REPS)
       fin <- is.finite(es[, 1])                       # estimate defined (0/0 cells drop out)
       est <- es[fin, 1]; se <- es[fin, 2]
@@ -116,6 +129,8 @@ cat("\n", strrep("=", 110), "\n", sep = "")
 cat(sprintf("SMALL-SAMPLE VALIDITY   %d metrics   REPS = %s   n = %s   script %s\n",
             length(unique(tab$metric)), format(REPS, big.mark = ","), paste(NS, collapse = ", "), SCRIPT_VERSION))
 cat(sprintf("Monte Carlo error (2 SE): variance ratio +/- %.1f%%   coverage +/- %.3f\n", 200 * SE_V, 2 * SE_COV))
+cat(sprintf("Per-case population N_POOL = %s; U-statistic reference V: %s\n", format(N_POOL, big.mark = ","),
+            if (USTAT_EXACT) "exact population value" else "reference sample (as Table S4)"))
 cat(strrep("=", 110), "\n", sep = "")
 cat("\nVariance ratio (empirical / analytic):\n"); print(ratio_w, row.names = FALSE)
 cat("\nCoverage of the 95% Wald interval:\n");     print(cov_w,   row.names = FALSE)

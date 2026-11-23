@@ -15,7 +15,9 @@
 # =============================================================================
 
 set.seed(2026)
-N_POOL <- 10000
+if (!exists("N_POOL"))      N_POOL      <- 10000   # size of the per-case bootstrap population
+if (!exists("USTAT_EXACT")) USTAT_EXACT <- FALSE   # TRUE: exact population V for the U-statistics
+                                                   # (default FALSE keeps the Table S4 reference-sample values)
 
 # -----------------------------------------------------------------------------
 # Simulators. Each returns V, truth and est_se(n, reps) -> matrix with columns
@@ -35,10 +37,21 @@ sim_multinom <- function(p, g, grad = NULL) {
 sim_rate <- function(lambda, theta = Inf) {
   list(V = var_rate(lambda, theta), truth = lambda, skew = NA,
        est_se = function(n, reps) {
-         M <- matrix(if (is.infinite(theta)) stats::rpois(n * reps, lambda)
-                     else stats::rnbinom(n * reps, size = theta, mu = lambda), n, reps)
-         cbind(colMeans(M), sqrt(apply(M, 2, stats::var) / n))
+         chunked(reps, n, function(r) {
+           M <- matrix(if (is.infinite(theta)) stats::rpois(n * r, lambda)
+                       else stats::rnbinom(n * r, size = theta, mu = lambda), n, r)
+           cbind(colMeans(M), sqrt(col_var(M) / n)) })
        })
+}
+
+# column variances without apply(); est_se work is split into chunks of at most
+# CHUNK_CELLS draws so that n = 5,000 x 20,000 replicates never allocates 800 MB at once
+col_var <- function(M) { n <- nrow(M); (colSums(M^2) - n * colMeans(M)^2) / (n - 1) }
+if (!exists("CHUNK_CELLS")) CHUNK_CELLS <- 2e7
+chunked <- function(reps, n, f) {
+  per <- max(1, floor(CHUNK_CELLS / n)); out <- vector("list", ceiling(reps / per)); done <- 0; i <- 0
+  while (done < reps) { r <- min(per, reps - done); i <- i + 1; out[[i]] <- f(r); done <- done + r }
+  do.call(rbind, out)
 }
 
 sim_percase <- function(x, transform = "identity") {
@@ -48,11 +61,10 @@ sim_percase <- function(x, transform = "identity") {
   dh <- switch(transform, identity = function(m) 1,
                sqrt = function(m) 1 / (2 * sqrt(pmax(m, 1e-12))), exp = exp)
   list(V = r$V, truth = r$estimate, skew = r$skew,
-       est_se = function(n, reps) {
-         M <- matrix(sample(x, n * reps, replace = TRUE), n, reps)
-         mu <- colMeans(M); v <- apply(M, 2, stats::var)
-         cbind(h(mu), sqrt(v * dh(mu)^2 / n))
-       })
+       est_se = function(n, reps) chunked(reps, n, function(r) {
+         M <- matrix(sample(x, n * r, replace = TRUE), n, r)
+         mu <- colMeans(M); v <- col_var(M)
+         cbind(h(mu), sqrt(v * dh(mu)^2 / n)) }))
 }
 
 # est_se_fn(n) returns c(estimate, plug-in se) from ONE sample
@@ -139,14 +151,48 @@ for (nm in names(PERCASE_REGISTRY)) {
     make = local({ k <- nm; function() sim_percase(PC[[k]], PERCASE_REGISTRY[[k]]$transform) }))
 }
 # --- U-statistics ---
+# Exact population values of V = 4 zeta_1 (first-order projection variance of a
+# degree-two U-statistic).  Kendall's tau for a bivariate normal with correlation
+# rho: h1(x, y) = 4 Phi2(x, y) - 2 Phi(x) - 2 Phi(y) + 1, integrated on a fine grid.
+# Rand / Fowlkes-Mallows: h1 depends only on the cell (a, b) of the joint table J,
+# so zeta_1 is a finite sum (same projection as cluster_index_variance()).
+kendall_exact_V <- function(rho, m = 1600, L = 7.5) {
+  x <- (seq_len(m) - 0.5) / m * 2 * L - L; h <- x[2] - x[1]
+  X <- matrix(x, m, m); Y <- t(X)
+  dens <- exp(-(X^2 - 2 * rho * X * Y + Y^2) / (2 * (1 - rho^2))) / (2 * pi * sqrt(1 - rho^2))
+  F2 <- t(apply(apply(dens, 2, cumsum), 1, cumsum)) * h^2       # Phi2 at the cell corners
+  Phi <- stats::pnorm(x + h / 2)
+  h1 <- 4 * F2 - 2 * matrix(Phi, m, m) - 2 * t(matrix(Phi, m, m)) + 1
+  w <- dens * h^2; tau <- 2 / pi * asin(rho)
+  4 * (sum(w * h1^2) - tau^2)
+}
+cluster_index_exact <- function(J, index) {
+  R <- rowSums(J); C <- colSums(J)
+  if (index == "rand") {
+    h1 <- 2 * J + 1 - outer(R, C, "+")
+  } else {
+    sab <- sum(J^2); sa <- sum(R^2); sb <- sum(C^2)
+    n11 <- sab; n10 <- sa - sab; n01 <- sb - sab
+    d1 <- 1 / sqrt((n11 + n10) * (n11 + n01))
+    dd <- -0.5 * n11 * ((n11 + n01) + (n11 + n10)) / ((n11 + n10) * (n11 + n01))^1.5
+    g11 <- J; g10 <- R - J; g01 <- t(C - t(J))
+    h1 <- d1 * g11 + dd * (g11 + g10 / 2 + g01 / 2)
+  }
+  m <- sum(J * h1); 4 * (sum(J * h1^2) - m^2)
+}
 kgen <- function(n) { z <- stats::rnorm(n); list(x = z + stats::rnorm(n), y = z + stats::rnorm(n)) }
-kbig <- kgen(4000); kest <- kendall_tau_variance(kbig$x, kbig$y)
+kbig <- kgen(4000); kest <- kendall_tau_variance(kbig$x, kbig$y)     # reference sample (Table S4)
+V_kendall <- if (USTAT_EXACT) kendall_exact_V(0.5) else kest$V
 CATALOGUE[["kendall_tau"]] <- list(family = "U-statistic",
-  sim = sim_parametric(kest$V, 2 / pi * asin(0.5),          # population tau for corr 0.5
+  sim = sim_parametric(V_kendall, 2 / pi * asin(0.5),          # population tau for corr 0.5
     function(n) { d <- kgen(n); r <- kendall_tau_variance(d$x, d$y)
                   c(r$estimate, sqrt(r$V / n)) }))
 CATALOGUE[["rand_index"]] <- list(family = "U-statistic", sim = sim_ustat(Jab, "rand"))
 CATALOGUE[["fowlkes_mallows"]] <- list(family = "U-statistic", sim = sim_ustat(Jab, "fowlkes_mallows"))
+if (USTAT_EXACT) {
+  CATALOGUE[["rand_index"]]$sim$V      <- cluster_index_exact(Jab, "rand")
+  CATALOGUE[["fowlkes_mallows"]]$sim$V <- cluster_index_exact(Jab, "fowlkes_mallows")
+}
 # --- other ---
 CATALOGUE[["entropy"]] <- list(family = "other",
   sim = sim_multinom(c(.5, .3, .15, .05), metric_entropy, grad_entropy))
