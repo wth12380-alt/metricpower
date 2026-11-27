@@ -423,7 +423,8 @@ small_n_warn <- function(n, metric = NULL) {
       "or t) approximation that has not converged at this size for bounded or skewed ",
       "metrics, so the achieved type I error can exceed the nominal level and the ",
       "achieved power can fall short of the target (operating-characteristics ",
-      "simulation, Table S4). The variance itself is unaffected; interpret n as a lower bound."),
+      "simulation, Table S4). The variance itself is unaffected; interpret n as a lower bound. ",
+      "With pilot per-case scores, n_calibrated() replaces the approximation by exact calibration."),
       if (is.null(metric)) "" else paste0(metric, ": "), n, SMALL_N), call. = FALSE)
   }
   invisible(small)
@@ -442,6 +443,107 @@ n_for_power_t <- function(V_alt, delta, alpha = 0.05, power = 0.80,
                            power = power, type = "one.sample",
                            alternative = if (two_sided) "two.sided" else "one.sided")
   ceiling(r$n * deff)
+}
+
+#' Exact (simulation-calibrated) power of the one-sample t-test on a per-case mean at size n
+#'
+#' The data-generating model is the empirical distribution of the pilot scores x
+#' (Appendix S2.8, "pivot-calibrated"): reps studies of size n are drawn with
+#' replacement from x; the critical value c*(n) is the (1 - alpha) quantile of |T|
+#' with T centred on the pilot mean, so the type I error is alpha by construction;
+#' the power is the share of the same studies with |(xbar - mu0)/SE| > c*(n),
+#' mu0 = mu - delta (common random numbers).
+#' @param x pilot per-case scores
+#' @param n sample size of the planned study
+#' @param delta difference to detect on the mean scale (H1 mean minus H0 mean)
+#' @return list(n, power, crit_exact, crit_t, reps)
+power_calibrated <- function(x, n, delta, alpha = 0.05, two_sided = TRUE,
+                             reps = 10000, seed = NULL) {
+  x <- as.numeric(x)
+  if (length(x) < 2) stop("x needs at least two pilot scores")
+  if (delta == 0) stop("delta must be non-zero")
+  if (!is.null(seed)) set.seed(seed)
+  n <- as.integer(n); mu <- mean(x)
+  B <- matrix(sample(x, n * reps, replace = TRUE), nrow = n)
+  xb <- colMeans(B)
+  s2 <- (colSums(B * B) - n * xb^2) / (n - 1)
+  s <- sqrt(pmax(s2, 0))
+  tstat <- function(center) {
+    t <- (xb - center) / (s / sqrt(n))
+    zero <- s == 0
+    if (any(zero)) {
+      t[zero] <- sign(xb[zero] - center) * Inf
+      t[zero & xb == center] <- 0
+    }
+    t
+  }
+  t0 <- tstat(mu); t1 <- tstat(mu - delta)
+  if (two_sided) {
+    crit <- stats::quantile(abs(t0), 1 - alpha, names = FALSE)
+    pw <- mean(abs(t1) > crit)
+  } else {
+    sg <- if (delta > 0) 1 else -1
+    crit <- stats::quantile(sg * t0, 1 - alpha, names = FALSE)
+    pw <- mean(sg * t1 > crit)
+  }
+  list(n = n, power = pw, crit_exact = crit,
+       crit_t = stats::qt(1 - alpha / (if (two_sided) 2 else 1), n - 1), reps = reps)
+}
+
+#' Exact (simulation-calibrated) sample size for a per-case mean from pilot scores
+#'
+#' The a priori counterpart of the exact calibration in Appendix S2.8: the pilot
+#' scores stand in for the data-generating model, so the result needs the
+#' distribution of the per-case scores, not only their variance. Starting from the
+#' noncentral-t n (n_for_power_t with V = var(x)), the smallest n whose calibrated
+#' power reaches the target is found by stepping. This is what to use when the
+#' formula n is below about 30 for a bounded or skewed score (BERTScore, SSIM,
+#' per-case Dice and NSD, Jaro in the manuscript): there the calibrated n exceeded
+#' the formula n by up to 24% (Table S4b).
+#' @param x pilot per-case scores
+#' @param delta difference to detect on the mean scale (H1 mean minus H0 mean)
+#' @param reps simulated studies per candidate n
+#' @param seed optional seed; the search is deterministic for a given seed
+#' @return list(n_exact, n_t, ratio, power_exact, power_at_n_t, crit_exact, crit_t,
+#'   m_pilot, mean, sd, skew, reps, deff, converged)
+n_calibrated <- function(x, delta, alpha = 0.05, power = 0.80, two_sided = TRUE,
+                         deff = 1, reps = 10000, seed = NULL, n_max = NULL) {
+  x <- as.numeric(x)
+  if (length(x) < 2) stop("x needs at least two pilot scores")
+  if (length(x) < 20) {
+    warning(sprintf(paste0("only %d pilot scores: the empirical distribution is a rough ",
+                           "stand-in for the data-generating model, so the calibrated n is ",
+                           "itself uncertain"), length(x)), call. = FALSE)
+  }
+  V <- stats::var(x)
+  if (V == 0) stop("pilot scores have zero variance")
+  n_t <- n_for_power_t(V_alt = V, delta = delta, alpha = alpha, power = power,
+                       two_sided = two_sided, deff = 1)
+  if (is.null(n_max)) n_max <- max(20 * n_t, n_t + 100)
+  cache <- list()
+  pw <- function(n) {
+    n <- max(as.integer(n), 2L); key <- as.character(n)
+    if (is.null(cache[[key]])) {
+      cache[[key]] <<- power_calibrated(x, n, delta, alpha = alpha, two_sided = two_sided,
+                                        reps = reps, seed = if (is.null(seed)) NULL else seed + n)
+    }
+    cache[[key]]$power
+  }
+  n <- n_t
+  if (pw(n) >= power) {
+    while (n > 2 && pw(n - 1) >= power) n <- n - 1
+  } else {
+    while (n < n_max && pw(n) < power) n <- n + 1
+  }
+  converged <- n < n_max
+  if (!converged) warning(sprintf("calibrated power did not reach %.2f by n = %d", power, n_max), call. = FALSE)
+  cn <- cache[[as.character(n)]]; ct <- cache[[as.character(n_t)]]
+  list(n_exact = ceiling(n * deff), n_t = ceiling(n_t * deff), ratio = n / n_t,
+       power_exact = cn$power, power_at_n_t = ct$power,
+       crit_exact = cn$crit_exact, crit_t = cn$crit_t,
+       m_pilot = length(x), mean = mean(x), sd = sqrt(V),
+       skew = mean(((x - mean(x)) / sqrt(V))^3), reps = reps, deff = deff,
+       converged = converged)
 }
 
 #' Power of the one-sample t-test at a given n (noncentral t)

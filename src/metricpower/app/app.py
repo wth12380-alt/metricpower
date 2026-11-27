@@ -249,6 +249,8 @@ def server(input, output, session):
         extra = ""
         if r.group == "B" and r.extra.get("n_score") is not None and r.extra.get("n_wald") is not None:
             extra = f"Wald {r.extra['n_wald']} · score {r.extra['n_score']}"
+        if r.extra.get("n_exact") is not None:
+            extra = f"t formula {r.extra['n_t']} · exact (pilot resampling) {r.extra['n_exact']}"
         if "n1" in r.extra:
             extra = f"{r.extra['n1']} positives + {r.extra['n0']} negatives"
         if "n_subgroup" in r.extra:

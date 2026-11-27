@@ -105,9 +105,29 @@ for m in GROUP_B_FAMILY["percase"]:
     SPECS[m] = dict(group="B", label=f"{m} (per-case mean) — {F.PERCASE_REGISTRY[m]['note']}", family="percase",
                     fields=[_f("mean", "Mean per-case score under H1", 0.80, None, None, 0.01),
                             _f("sd", "SD of the per-case scores (pilot)", 0.12, 0.0001, None, 0.01),
-                            _f("null", "Mean under H0", 0.77, None, None, 0.01)],
-                    build=lambda vals, common, m=m: n_for_power_group_b(m, mean=vals["mean"], sd=vals["sd"],
-                                                                         delta=_delta_transformed(m, vals), **_c(common)))
+                            _f("null", "Mean under H0", 0.77, None, None, 0.01),
+                            _f("pilot", "Pilot per-case scores (optional)", "", kind="textarea",
+                               help="paste the per-case scores of a pilot set, separated by spaces, commas or "
+                                    "new lines. The mean and SD above are then taken from the pilot and n is "
+                                    "calibrated exactly by resampling them (type I error held at α, power checked "
+                                    "by simulation). Use this when the formula n is below about 30.")],
+                    build=lambda vals, common, m=m: _build_percase(m, vals, common))
+
+
+def _parse_scores(txt: str) -> np.ndarray:
+    return np.array([float(v) for v in txt.replace(",", " ").replace(";", " ").split()], dtype=float)
+
+
+def _build_percase(m, vals, common):
+    x = _parse_scores(vals.get("pilot") or "")
+    if x.size == 0:
+        return n_for_power_group_b(m, mean=vals["mean"], sd=vals["sd"], delta=_delta_transformed(m, vals), **_c(common))
+    if x.size < 2:
+        raise ValueError("paste at least two pilot scores, or clear the box to use the mean and SD")
+    t = F.PERCASE_REGISTRY[m]["transform"]
+    h = {"identity": lambda v: v, "sqrt": math.sqrt, "exp": math.exp}[t]
+    delta = h(float(x.mean())) - h(vals["null"])   # H1 is the pilot mean; H0 stays as entered
+    return n_for_power_group_b(m, x=x, delta=delta, exact=True, seed=20240601, **_c(common))
 
 
 def _delta_transformed(m, vals):

@@ -431,7 +431,8 @@ def small_n_note(n: int) -> str:
             "approximation that has not converged at this size for bounded or skewed metrics, so the "
             "achieved type I error can exceed the nominal level and the achieved power can fall short "
             "of the target (operating-characteristics simulation, Table S4). The variance itself is "
-            "unaffected; interpret n as a lower bound")
+            "unaffected; interpret n as a lower bound. With pilot per-case scores, n_calibrated() replaces "
+            "the approximation by exact calibration (Appendix S2.8)")
 
 
 def n_for_power_t(V_alt: float, delta: float, alpha: float = 0.05, power: float = 0.80,
@@ -786,6 +787,109 @@ def var_sqrt_transform(V: float, mean_value: float) -> float:
     if mean_value <= 0:
         raise ValueError("mean_value must be positive")
     return V / (4 * mean_value)
+
+
+def _t_stats_resampled(x: np.ndarray, n: int, reps: int, rng) -> tuple:
+    """reps studies of size n drawn with replacement from the pilot scores x; returns (mean, sd)."""
+    B = rng.choice(x, size=(reps, n), replace=True)
+    return B.mean(1), B.std(1, ddof=1)
+
+
+def _t_from(mean, sd, center, n):
+    """One-sample t statistic with the plug-in SE.  A resample with zero spread (possible when n is tiny
+    and the pilot has ties) has an infinite statistic unless its mean sits exactly on the centre."""
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (mean - center) / (sd / math.sqrt(n))
+    zero = sd == 0
+    if np.any(zero):
+        t = np.where(zero, np.sign(mean - center) * np.inf, t)
+        t = np.where(zero & (mean == center), 0.0, t)
+    return t
+
+
+def power_calibrated(x, n: int, delta: float, alpha: float = 0.05, two_sided: bool = True,
+                     reps: int = 10000, seed: Optional[int] = None) -> dict:
+    """Exact (simulation-calibrated) power of the one-sample t-test on a per-case mean at size n.
+
+    The data-generating model is the empirical distribution of the pilot scores x (Appendix S2.8,
+    'pivot-calibrated'): reps studies of size n are drawn with replacement from x; the critical value
+    c*(n) is the (1 - alpha) quantile of |T| with T centred on the pilot mean mu, so the type I error is
+    alpha by construction; the power is the share of the same studies with |(xbar - mu0)/SE| > c*(n),
+    mu0 = mu - delta.  Both quantities use the same resamples (common random numbers)."""
+    x = np.asarray(x, dtype=float).ravel()
+    if x.size < 2:
+        raise ValueError("x needs at least two pilot scores")
+    if delta == 0:
+        raise ValueError("delta must be non-zero")
+    rng = np.random.default_rng(seed)
+    mu = float(x.mean())
+    mean, sd = _t_stats_resampled(x, int(n), reps, rng)
+    t0 = _t_from(mean, sd, mu, n)            # under the truth: calibrates the critical value
+    t1 = _t_from(mean, sd, mu - delta, n)    # against the null value mu0 = mu - delta
+    if two_sided:
+        crit = float(np.quantile(np.abs(t0), 1 - alpha))
+        pw = float(np.mean(np.abs(t1) > crit))
+    else:
+        s = 1.0 if delta > 0 else -1.0
+        crit = float(np.quantile(s * t0, 1 - alpha))
+        pw = float(np.mean(s * t1 > crit))
+    from scipy.stats import t as tdist
+    return dict(n=int(n), power=pw, crit_exact=crit,
+                crit_t=float(tdist.ppf(1 - alpha / (2 if two_sided else 1), n - 1)), reps=reps)
+
+
+def n_calibrated(x, delta: float, alpha: float = 0.05, power: float = 0.80, two_sided: bool = True,
+                 deff: float = 1.0, reps: int = 10000, seed: Optional[int] = None,
+                 n_max: Optional[int] = None) -> dict:
+    """Exact (simulation-calibrated) sample size for a per-case mean from pilot scores.
+
+    This is the a priori counterpart of the exact calibration in Appendix S2.8: the pilot scores stand
+    in for the data-generating model, so the result needs the distribution of the per-case scores, not
+    only their variance.  Starting from the noncentral-t n (n_for_power_t with V = var(x)), the smallest
+    n whose calibrated power (power_calibrated) reaches the target is found by stepping; the search is
+    deterministic for a given seed.  Returns n_exact, the formula n, their ratio, the calibrated critical
+    value and the calibrated power at both sample sizes.  deff multiplies the result.
+
+    The per-case metrics for which the formula n fell below 30 in the manuscript (BERTScore, SSIM, per-case
+    Dice and NSD, Jaro) are exactly the cases this is for: there the t approximation has not converged for
+    a bounded, skewed score, and the calibrated n exceeded the formula n by up to 24% (Table S4b)."""
+    x = np.asarray(x, dtype=float).ravel()
+    if x.size < 2:
+        raise ValueError("x needs at least two pilot scores")
+    if x.size < 20:
+        warnings.warn(f"only {x.size} pilot scores: the empirical distribution is a rough stand-in for the "
+                      "data-generating model, so the calibrated n is itself uncertain", stacklevel=2)
+    V = float(np.var(x, ddof=1))
+    if V == 0:
+        raise ValueError("pilot scores have zero variance")
+    n_t = n_for_power_t(V, delta, alpha=alpha, power=power, two_sided=two_sided, deff=1.0)
+    n_max = n_max or max(20 * n_t, n_t + 100)
+    cache: Dict[int, dict] = {}
+
+    def pw(n):
+        n = int(max(n, 2))
+        if n not in cache:
+            # one stream per n: the same n always gives the same answer within a call
+            cache[n] = power_calibrated(x, n, delta, alpha, two_sided, reps,
+                                        seed=None if seed is None else seed + n)
+        return cache[n]["power"]
+
+    n = n_t
+    if pw(n) >= power:
+        while n > 2 and pw(n - 1) >= power:
+            n -= 1
+    else:
+        while n < n_max and pw(n) < power:
+            n += 1
+    out = dict(n_exact=int(math.ceil(n * deff - 1e-12)), n_t=int(math.ceil(n_t * deff - 1e-12)),
+               ratio=n / n_t, power_exact=cache[n]["power"], power_at_n_t=cache[n_t]["power"],
+               crit_exact=cache[n]["crit_exact"], crit_t=cache[n]["crit_t"],
+               m_pilot=int(x.size), mean=float(x.mean()), sd=math.sqrt(V),
+               skew=float(np.mean(((x - x.mean()) / math.sqrt(V)) ** 3)), reps=reps, deff=deff,
+               converged=n < n_max)
+    if not out["converged"]:
+        warnings.warn(f"calibrated power did not reach {power} by n = {n_max}", stacklevel=2)
+    return out
 
 
 # -----------------------------------------------------------------------------

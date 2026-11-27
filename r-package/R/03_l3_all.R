@@ -134,7 +134,7 @@ PERCASE_REGISTRY <- list(
 #' @param delta difference to detect, on the metric's own scale
 n_for_power_percase_named <- function(name, x, delta, alpha = 0.05,
                                       power = 0.80, two_sided = TRUE, deff = 1,
-                                      skew_warn = 1.0) {
+                                      skew_warn = 1.0, exact = FALSE, reps = 10000, seed = NULL) {
   e <- PERCASE_REGISTRY[[name]]
   if (is.null(e)) {
     stop("unknown per-case metric '", name, "'. Available: ",
@@ -143,7 +143,7 @@ n_for_power_percase_named <- function(name, x, delta, alpha = 0.05,
   r <- n_for_power_percase(x, delta = delta, transform = e$transform,
                            alpha = alpha, power = power,
                            two_sided = two_sided, deff = deff,
-                           skew_warn = skew_warn)
+                           skew_warn = skew_warn, exact = exact, reps = reps, seed = seed)
   c(list(metric = name, note = e$note), r)
 }
 
@@ -385,7 +385,7 @@ l3_family_of <- function(metric) {
 #'   confusion_matrix : p (cell probabilities), delta
 #'   multiclass       : P (k x k joint table), delta
 #'   rate             : lambda, ratio, theta
-#'   percase          : x (pilot per-case scores), delta
+#'   percase          : x (pilot per-case scores), delta; exact = TRUE calibrates n by resampling x (n_calibrated)
 #'   other            : arguments specific to the estimator, see the functions
 #'
 #' @return list with n and the ingredients that produced it
@@ -454,7 +454,8 @@ n_for_power_l3 <- function(metric, ..., delta = NULL, alpha = 0.05,
     if (is.null(x)) stop("family 'percase' needs x = <pilot per-case scores>", call. = FALSE)
     r <- n_for_power_percase_named(metric, x, delta = delta, alpha = alpha,
                                    power = power, two_sided = two_sided,
-                                   deff = deff)
+                                   deff = deff, exact = isTRUE(args$exact),
+                                   reps = args$reps %||% 10000, seed = args$seed)
     return(c(list(family = fam), r))
   }
 

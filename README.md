@@ -6,9 +6,9 @@ and ~70 more. Three ways to use it:
 
 | | | |
 |---|---|---|
-| **Shiny app** (v0.1.3) | point-and-click: pick the metric, enter H0 / H1 / α / power, read n — and see the formula with your numbers and the reference | [`app.py`](app.py) — run locally in one command (below) |
-| **Python package** `metricpower` 0.1.3 | the same calculations as functions; ships the app | this repository root |
-| **R package** `metricpower` 0.1.3 | the original implementation; identical numbers | [`r-package/`](r-package/) |
+| **Shiny app** (v0.1.4) | point-and-click: pick the metric, enter H0 / H1 / α / power, read n — and see the formula with your numbers and the reference | [`app.py`](app.py) — run locally in one command (below) |
+| **Python package** `metricpower` 0.1.4 | the same calculations as functions; ships the app | this repository root |
+| **R package** `metricpower` 0.1.4 | the original implementation; identical numbers | [`r-package/`](r-package/) |
 
 ## The Shiny app
 
@@ -101,6 +101,8 @@ mp.n_for_power_group_b("mcc", p=p, delta=0.05).n                                
 mp.n_for_power_group_b("macro_f1", P=[[.30,.04,.02],[.05,.22,.05],[.03,.06,.23]], delta=0.05).n   # 594
 mp.n_for_power_group_b("fppi", lam=0.5, ratio=0.7, theta=2).n                     # 155 images
 mp.n_for_power_group_b("brier", mean=0.15, sd=0.15, delta=0.02).n                 # per-case mean
+mp.n_for_power_group_b("dice_percase", x=pilot_dice, delta=0.08, exact=True).n     # exact n from pilot scores
+mp.n_calibrated(pilot_dice, delta=0.08)                                           # the same, with the calibration details
 
 # Group A: natively ported formulas
 mp.n_for_power_group_a("auroc", auc1=0.80, auc0=0.70).n                           # Hanley–McNeil
@@ -188,11 +190,18 @@ implemented variance and checks the empirical type I error and power at the n th
   corrected estimate (`entropy_miller_madow`, `conditional_entropy_miller_madow`); the simulation does the
   same (`test = "z+MM"`). The correction recovers about two-thirds of the shortfall (entropy 0.73 → 0.78);
   the rest is the V₀ > V₁ effect above and is recovered by the score n (0.80).
-- **n below 30 is flagged, not fixed.** For BERTScore, SSIM, per-case Dice and NSD and Jaro the calculated
-  n was 5–25; Var = σ²/n was exact there, but neither the t nor the normal approximation had converged for a
-  bounded, left-skewed metric (type I 0.06–0.15, power 0.76–0.78). Every result with n < 30 now carries a
-  note (`small_n_note`; `small_n_warn()` in R) that the n is a floor, not a guarantee. No resampling or
-  post hoc procedure is recommended: the package is for a priori planning.
+- **n below 30 is flagged, and can be calibrated exactly from pilot scores.** For BERTScore, SSIM, per-case
+  Dice and NSD and Jaro the calculated n was 8–27; Var = σ²/n was exact there, but the t approximation had
+  not converged for a bounded, skewed metric (power 0.74–0.78 at the calculated n). Every result with n < 30
+  carries a note (`small_n_note`; `small_n_warn()` in R) that the n is a floor. When pilot per-case scores
+  are available, `n_calibrated(x, delta)` (R and Python; `exact=True` in `n_for_power_group_b` /
+  `n_for_power_percase`; the "pilot per-case scores" box in the app) resamples them as the data-generating
+  model, calibrates the t critical value so that the type I error is α by construction, and returns the
+  smallest n whose simulated power reaches the target — the a priori form of the exact calibration in the
+  validation (`validation/exact_oc.R`, Table S4b). On the Table S6 models it reproduces the exact n there
+  within Monte Carlo error (SSIM 17 → 19–21, per-case Dice 16–17 → 19–20, BERTScore 8 → 9, Jaro 27 → 29).
+  This is still a priori planning: the pilot replaces an assumed distribution, nothing is estimated from
+  the study itself.
 
 ## What to know before trusting a number
 

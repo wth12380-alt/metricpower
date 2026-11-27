@@ -216,7 +216,7 @@ var_percase_transformed <- function(x, transform = c("identity", "sqrt", "exp"))
 #' systematically on one side of the truth at this n.
 n_for_power_percase <- function(x, delta, transform = "identity", alpha = 0.05,
                                 power = 0.80, two_sided = TRUE, deff = 1,
-                                skew_warn = 1.0) {
+                                skew_warn = 1.0, exact = FALSE, reps = 10000, seed = NULL) {
   r <- var_percase_transformed(x, transform)
   # a per-case mean is analysed with a one-sample t-test (sample SD as SE), so the
   # sample size comes from the noncentral t; the z-based n is kept for reference
@@ -224,15 +224,34 @@ n_for_power_percase <- function(x, delta, transform = "identity", alpha = 0.05,
                      two_sided = two_sided, deff = deff)
   n <- n_for_power_t(V_alt = r$V, delta = delta, alpha = alpha, power = power,
                      two_sided = two_sided, deff = deff)
-  if (abs(r$skew) > skew_warn) {
+  if (abs(r$skew) > skew_warn && !isTRUE(exact)) {
     warning(sprintf(
       paste0("per-case scores have skew %.2f. The variance is exact, but Wald ",
              "coverage is below nominal at small n and the misses are one-sided. ",
              "Run sensitivity_by_n_percase() before committing to n = %d."),
       r$skew, n), call. = FALSE)
   }
-  small_n_warn(n)
-  c(r, list(n = n, n_z = n_z, test = "t", delta = delta, small_n = isTRUE(n < SMALL_N)))
+  out <- c(r, list(n = n, n_z = n_z, n_t = n, test = "t", delta = delta))
+  if (isTRUE(exact)) {
+    # exact calibration by resampling the pilot scores (Appendix S2.8, a priori form); the test is
+    # on the mean scale, so a delta given on a transformed scale is mapped back first
+    inv <- switch(transform, identity = function(v) v, sqrt = function(v) v^2, exp = log)
+    h0 <- r$estimate - delta
+    if (transform == "sqrt" && h0 <= 0) stop("the null value must be positive for a sqrt-transformed metric")
+    cal <- n_calibrated(x, delta = r$mean - inv(h0), alpha = alpha, power = power,
+                        two_sided = two_sided, deff = deff, reps = reps, seed = seed)
+    out$n <- cal$n_exact; out$n_exact <- cal$n_exact; out$test <- "t, calibrated"
+    out$calibration <- cal
+    message(sprintf(paste0(
+      "n = %d is calibrated exactly by resampling the %d pilot scores (%d studies per n): the type I ",
+      "error is %.2f by construction and the power at this n is %.2f. The t formula gave %d ",
+      "(calibrated power %.2f)."), cal$n_exact, cal$m_pilot, reps, alpha, cal$power_exact,
+      cal$n_t, cal$power_at_n_t))
+  } else {
+    small_n_warn(n)
+  }
+  out$small_n <- isTRUE(out$n < SMALL_N)
+  out
 }
 
 # -----------------------------------------------------------------------------

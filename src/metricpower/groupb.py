@@ -20,7 +20,7 @@ import numpy as np
 from scipy.stats import norm
 
 from . import families as F
-from .core import (SMALL_N, small_n_note, n_for_power_t, CM_METRICS, Result, _z, kappa_w, kappa_w_var_fce, n_for_power,
+from .core import (SMALL_N, small_n_note, n_for_power_t, n_calibrated, CM_METRICS, Result, _z, kappa_w, kappa_w_var_fce, n_for_power,
                    n_for_power_metric, weights_identity, weights_linear, weights_quadratic)
 
 GROUP_B_FAMILY: Dict[str, List[str]] = {
@@ -93,6 +93,33 @@ def _finish(metric, fam, est, V, delta, alpha, power, two_sided, deff, formula_l
     return Result(n=n, metric=metric, group="B", estimate=est, null_value=null_value, V_alt=V, V_null=V,
                   inputs=inputs or {}, steps=steps, formula_latex=fl, formula_numeric=fn,
                   reference=refs, notes=notes or [], extra=extra)
+
+
+def _calibrate_percase(res: Result, x, r: dict, delta, alpha, power, two_sided, deff, reps=10000, seed=None) -> None:
+    """Exact calibration from pilot scores (Appendix S2.8, a priori form): resample the pilot scores,
+    calibrate the t critical value at the truth and find the smallest n with the target power.  The test
+    is on the mean scale, so a delta given on a transformed scale (sqrt, exp) is mapped back first."""
+    inv = {"identity": lambda v: v, "sqrt": lambda v: v ** 2, "exp": math.log}[r["transform"]]
+    h0 = r["estimate"] - delta
+    if r["transform"] == "sqrt" and h0 <= 0:
+        raise ValueError("the null value must be positive for a sqrt-transformed metric")
+    delta_mean = r["mean"] - inv(h0)
+    c = n_calibrated(x, delta_mean, alpha=alpha, power=power, two_sided=two_sided, deff=deff, reps=reps, seed=seed)
+    n_t = res.n
+    res.extra.update(n_t=n_t, n_exact=c["n_exact"], exact=c)
+    res.steps += [("critical value, calibrated at the truth", round(c["crit_exact"], 4)),
+                  ("power of the t rule at n (t formula), calibrated", round(c["power_at_n_t"], 3)),
+                  ("n (exact, pilot resampling)", c["n_exact"])]
+    res.formula_latex.append(r"n_{\text{exact}} = \min\{n : P(|T_n| > c^*(n)) \ge 1-\beta\},\quad "
+                             r"c^*(n) = Q_{1-\alpha}|T_n|\ \text{(pilot resampling)}")
+    res.formula_numeric.append(f"c^*({c['n_exact']}) = {c['crit_exact']:.3f},\\quad n_t = {n_t} \\to n_{{\\text{{exact}}}} = {c['n_exact']}")
+    res.notes = [nt for nt in res.notes
+                 if not nt.startswith(f"n = {n_t} is below") and not nt.startswith("pilot scores have skew")]
+    res.notes.append(f"n = {c['n_exact']} is calibrated exactly by resampling the {c['m_pilot']} pilot scores "
+                     f"({reps} studies per n, Appendix S2.8): the type I error is {alpha} by construction and the power "
+                     f"at this n is {c['power_exact']:.2f}. The t formula gave {n_t} (calibrated power {c['power_at_n_t']:.2f}). "
+                     "The calibrated n is as good as the pilot's representation of the score distribution.")
+    res.n = c["n_exact"]
 
 
 def _add_miller_madow_note(res: Result, bias_plugin: float, delta: float, symbol: str, mm_latex: str) -> None:
@@ -184,10 +211,14 @@ def n_for_power_group_b(metric: str, *, delta: Optional[float] = None, alpha: fl
         if e["transform"] != "identity":
             fl.append(r"V = \sigma^2\,[h'(\mu)]^2,\quad h = " + (r"\sqrt{\cdot}" if e["transform"] == "sqrt" else r"\exp(\cdot)"))
             fn.append(f"V = {r['V_mean']:.5f} \\times {r['dg']:.5f}^2 = {r['V']:.5f}")
-        return _finish(metric, fam, r["estimate"], r["V"], delta, alpha, power, two_sided, deff, fl, fn,
-                       ["clt_mean", "bradley2008"] if metric in ("brier", "root_brier") else ["clt_mean"],
-                       notes=notes, inputs=dict(mean=r["mean"], sd=math.sqrt(r["V_mean"]), delta=delta, transform=e["transform"]),
-                       null_value=r["estimate"] - delta, t_test=True)
+        res = _finish(metric, fam, r["estimate"], r["V"], delta, alpha, power, two_sided, deff, fl, fn,
+                      ["clt_mean", "bradley2008"] if metric in ("brier", "root_brier") else ["clt_mean"],
+                      notes=notes, inputs=dict(mean=r["mean"], sd=math.sqrt(r["V_mean"]), delta=delta, transform=e["transform"]),
+                      null_value=r["estimate"] - delta, t_test=True)
+        if x is not None and kw.get("exact", False):
+            _calibrate_percase(res, x, r, delta, alpha, power, two_sided, deff,
+                               reps=kw.get("reps", 10000), seed=kw.get("seed"))
+        return res
 
     # ---- other ----
     if metric == "weighted_kappa":
